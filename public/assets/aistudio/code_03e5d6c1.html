@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      "colors": {
+        "on-secondary-fixed": "#002114",
+        "tertiary": "#006c4b",
+        "surface-container": "#eaedff",
+        "tertiary-fixed-dim": "#45dfa4",
+        "on-primary-fixed": "#002113",
+        "on-primary-container": "#00422b",
+        "on-tertiary-fixed-variant": "#005137",
+        "error-container": "#ffdad6",
+        "surface": "#faf8ff",
+        "surface-container-high": "#e2e7ff",
+        "inverse-on-surface": "#eef0ff",
+        "outline": "#6c7a71",
+        "on-primary": "#ffffff",
+        "on-surface-variant": "#3c4a42",
+        "on-secondary-fixed-variant": "#005137",
+        "secondary-fixed": "#85f8c4",
+        "secondary-fixed-dim": "#68dba9",
+        "surface-bright": "#faf8ff",
+        "on-secondary": "#ffffff",
+        "on-background": "#131b2e",
+        "primary-fixed": "#6ffbbe",
+        "inverse-surface": "#283044",
+        "inverse-primary": "#4edea3",
+        "surface-container-highest": "#dae2fd",
+        "surface-container-low": "#f2f3ff",
+        "on-tertiary": "#ffffff",
+        "surface-tint": "#006c49",
+        "secondary": "#006c4a",
+        "surface-dim": "#d2d9f4",
+        "on-surface": "#131b2e",
+        "surface-variant": "#dae2fd",
+        "primary-fixed-dim": "#4edea3",
+        "outline-variant": "#bbcabf",
+        "on-secondary-container": "#00714e",
+        "surface-container-lowest": "#ffffff",
+        "secondary-container": "#82f5c1",
+        "on-error-container": "#93000a",
+        "primary-container": "#10b981",
+        "background": "#faf8ff",
+        "on-tertiary-container": "#00422c",
+        "on-tertiary-fixed": "#002114",
+        "tertiary-fixed": "#68fcbf",
+        "error": "#ba1a1a",
+        "on-error": "#ffffff",
+        "on-primary-fixed-variant": "#005236",
+        "primary": "#006c49",
+        "tertiary-container": "#00b982"
+      },
+      "borderRadius": {
+        "DEFAULT": "0.25rem",
+        "lg": "0.5rem",
+        "xl": "0.75rem",
+        "full": "9999px"
+      },
+      "spacing": {
+        "gutter": "1.5rem",
+        "margin-mobile": "1rem",
+        "space-xs": "0.25rem",
+        "space-xl": "2rem",
+        "space-lg": "1.5rem",
+        "space-md": "1rem",
+        "margin": "2rem",
+        "space-sm": "0.5rem",
+        "gutter-mobile": "1rem"
+      },
+      "fontFamily": {
+        "headline-sm": ["Inter"],
+        "body-lg": ["Inter"],
+        "display-lg": ["Inter"],
+        "label-md": ["Inter"],
+        "body-md": ["Inter"],
+        "headline-md": ["Inter"],
+        "headline-lg": ["Inter"],
+        "body-sm": ["Inter"],
+        "label-lg": ["Inter"],
+        "label-sm": ["Inter"]
+      },
+      "fontSize": {
+        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+        "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+        "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+        "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+        "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+        "currency-display": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+        "display-lg-mobile": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+        "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }]
+      }
+    }
+  }
+};</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-emerald-100 selection:text-emerald-900"><header class="fixed top-0 w-full z-50 pt-safe bg-surface-container-lowest/90 backdrop-blur-xl border-b border-surface-dim/50 shadow-sm"><div class="h-16 px-4 flex items-center justify-between"><div class="flex items-center gap-space-sm"><button aria-label="Go back" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-700 hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="history.back()" type="button"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><div class="flex items-center gap-2.5"><img alt="LakExpense logo.png" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDn6iMJ6g_5JVqvrN7e0_8pRCfTAp6uHK4btfHJPBzFnCB2uYZlxYL1xmMJnLIx3MvXPPPqeY4C8DIeUC09-qvKh5aM_4UxF7ImRxFJ36TMTXdv8ew-0MNSC7SCCneY0yTjHHUaDtFdrgLcHocFRt94Z1crXhPej65Ah3fz6QCEhEo2yQ0ZnT-Nmj6xcDeyCuj459j1VMzjYsNxwvACNL8DpVFPhzK19qDLs2wYKv1WOoHskECBZEFyVQ"/><div class="flex flex-col"><h1 class="font-headline-sm text-[17px] font-semibold text-slate-900 leading-tight">Profile &amp; Settings</h1><div class="flex items-center gap-1 mt-0.5"><span class="material-symbols-outlined text-[13px] text-emerald-600">lock</span><span class="font-label-sm text-[11px] font-semibold text-emerald-600 tracking-wide">AES-256 VAULT ACTIVE</span></div></div></div></div><div class="flex items-center gap-1"><button aria-label="Help and Support" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-surface-container-low active:bg-surface-container transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">help_outline</span></button><div class="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm"><span class="material-symbols-outlined text-white text-[18px]">person</span></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-safe bg-background"><div class="flex flex-col w-full pb-10">
+<!-- Interactive Toast Notification Container -->
+<div class="fixed top-20 left-4 right-4 z-50 transform -translate-y-24 opacity-0 transition-all duration-300 pointer-events-none flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white shadow-xl" id="vault-toast">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-[22px]">check_circle</span>
+<span class="font-body-md text-sm text-white" id="vault-toast-msg">Setting updated successfully</span>
+</div>
+<span class="font-label-sm text-[11px] text-emerald-300 uppercase font-bold tracking-wider">Encrypted</span>
+</div>
+<div class="px-4 pt-4 flex flex-col gap-5">
+<!-- SECTION 1: Profile & Vault Status Hero Card -->
+<div class="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-5 border border-surface-dim/60 shadow-sm">
+<!-- Ambient emerald subtle glow gradient -->
+<div class="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-emerald-100/60 blur-3xl pointer-events-none"></div>
+<div class="relative flex flex-col items-center text-center">
+<!-- Avatar with monogram & edit badge -->
+<div class="relative mb-3">
+<div class="w-20 h-20 rounded-full bg-emerald-50 border-2 border-emerald-200/80 flex items-center justify-center shadow-inner">
+<span class="font-headline-lg text-2xl font-bold text-emerald-700 tracking-tight">KK</span>
+</div>
+<button aria-label="Change photo" class="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform hover:bg-emerald-700" onclick="showToast('Profile photo update ready')" type="button">
+<span class="material-symbols-outlined text-[15px]">photo_camera</span>
+</button>
+</div>
+<!-- Name & Details -->
+<h2 class="font-headline-md text-xl font-bold text-slate-900">Kasun Kalhara</h2>
+<p class="font-body-sm text-xs text-slate-500 mt-0.5">kasun.kalhara@email.lk • Colombo, Sri Lanka</p>
+<!-- Offline Vault Status Badge -->
+<div class="mt-3.5 w-full bg-emerald-50/70 border border-emerald-200/60 rounded-xl p-3 flex flex-col gap-1 items-start text-left">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-700 text-[18px]">verified_user</span>
+<span class="font-label-md text-xs font-semibold text-emerald-800">Offline SQLite Vault: Active &amp; Encrypted</span>
+</div>
+<div class="flex items-center justify-between w-full mt-0.5">
+<span class="font-label-sm text-[11px] text-slate-600 flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+              Last local backup: Today, 04:30 PM
+            </span>
+<span class="font-label-sm text-[11px] font-mono text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.5 rounded">AES-GCM-256</span>
+</div>
+</div>
+<!-- Edit Profile Chip Button -->
+<button class="mt-4 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-surface-container-low border border-surface-dim/70 text-slate-700 hover:bg-surface-container hover:text-slate-900 active:scale-95 transition-all text-xs font-medium" onclick="showToast('Opened Profile Editor')" type="button">
+<span class="material-symbols-outlined text-[15px] text-emerald-600">edit</span>
+<span>Edit Profile</span>
+</button>
+</div>
+</div>
+<!-- SECTION 2: Regional Preferences -->
+<div class="flex flex-col gap-1.5">
+<h3 class="font-label-md text-xs font-bold text-emerald-800 uppercase tracking-wider px-1">Regional &amp; Accounting</h3>
+<div class="rounded-2xl bg-surface-container-lowest border border-surface-dim/60 shadow-sm overflow-hidden divide-y divide-slate-100">
+<!-- Primary Currency -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Currency selection: Sri Lankan Rupee (LKR)')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Primary Currency</p>
+<p class="font-body-sm text-xs text-slate-500">Sri Lankan Rupee (LKR - Rs.)</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5 text-slate-400">
+<span class="font-label-sm text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">Rs.</span>
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</button>
+<!-- Date Format -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Date format: DD/MM/YYYY')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Date Format</p>
+<p class="font-body-sm text-xs text-slate-500">DD/MM/YYYY (e.g., 26/10/2024)</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+<!-- Financial Cycle Start -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Financial cycle: 1st of month')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">event_repeat</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Financial Cycle Start</p>
+<p class="font-body-sm text-xs text-slate-500">1st of every month</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+<!-- First Day of Week -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('First day set to Monday')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-[20px]">today</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">First Day of Week</p>
+<p class="font-body-sm text-xs text-slate-500">Monday</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- SECTION 3: Security & Access Control -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between px-1">
+<h3 class="font-label-md text-xs font-bold text-emerald-800 uppercase tracking-wider">Vault Security &amp; Access</h3>
+<span class="font-label-sm text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">lock</span> Hardware Keystore
+        </span>
+</div>
+<div class="rounded-2xl bg-surface-container-lowest border border-surface-dim/60 shadow-sm overflow-hidden divide-y divide-slate-100">
+<!-- 4-Digit PIN Toggle -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">pin</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">4-Digit Master PIN</p>
+<p class="font-body-sm text-xs text-slate-500">Locks vault upon app backgrounding</p>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 rounded-full bg-emerald-600 p-0.5 flex items-center justify-end transition-colors duration-200 cursor-pointer shadow-sm" onclick="toggleSwitch(this, 'Master PIN Lock')" role="switch" type="button">
+<span class="w-6 h-6 rounded-full bg-white shadow flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">check</span>
+</span>
+</button>
+</div>
+<!-- Biometrics Toggle -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">fingerprint</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Biometric Unlock</p>
+<p class="font-body-sm text-xs text-slate-500">Fingerprint / Android BiometricPrompt</p>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 rounded-full bg-emerald-600 p-0.5 flex items-center justify-end transition-colors duration-200 cursor-pointer shadow-sm" onclick="toggleSwitch(this, 'Biometric Authentication')" role="switch" type="button">
+<span class="w-6 h-6 rounded-full bg-white shadow flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">check</span>
+</span>
+</button>
+</div>
+<!-- Change PIN -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Navigating to Master PIN reset dialog')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-[20px]">password</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Change Master PIN</p>
+<p class="font-body-sm text-xs text-slate-500">Updated 14 days ago</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+<!-- Auto-Lock Delay -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Auto-Lock set to Immediately')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Auto-Lock Delay</p>
+<p class="font-body-sm text-xs text-slate-500">Immediately upon exit</p>
+</div>
+</div>
+<span class="font-label-sm text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/70">Immediate</span>
+</button>
+</div>
+</div>
+<!-- SECTION 4: Data Vault & Backup Management -->
+<div class="flex flex-col gap-1.5">
+<h3 class="font-label-md text-xs font-bold text-emerald-800 uppercase tracking-wider px-1">Offline Vault &amp; Backups</h3>
+<div class="rounded-2xl bg-surface-container-lowest border border-surface-dim/60 shadow-sm overflow-hidden divide-y divide-slate-100">
+<!-- Local Storage Breakdown Bar -->
+<div class="p-4 bg-surface-container-low/60">
+<div class="flex items-center justify-between mb-2">
+<span class="font-label-md text-xs font-semibold text-slate-900 flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-700 text-[18px]">database</span> Local Vault Size
+            </span>
+<span class="font-label-sm text-xs font-mono font-bold text-emerald-700">2.4 MB</span>
+</div>
+<div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden flex">
+<div class="h-full bg-emerald-600" style="width: 55%" title="48 Transactions"></div>
+<div class="h-full bg-emerald-400" style="width: 25%" title="12 Receipts"></div>
+<div class="h-full bg-teal-300" style="width: 20%" title="6 Budgets"></div>
+</div>
+<div class="flex items-center justify-between text-slate-500 font-label-sm text-[11px] mt-2">
+<span>48 transactions</span>
+<span>6 budgets</span>
+<span>12 receipts (cached)</span>
+</div>
+</div>
+<!-- Encrypted Database Backup -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Exporting encrypted LakVault.db.enc...')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">file_download</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Encrypted Vault Backup</p>
+<p class="font-body-sm text-xs text-slate-500">Generate password-protected SQLite export</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-emerald-600 text-[20px]">arrow_downward</span>
+</button>
+<!-- Restore Data from File -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Select LakExpense .enc backup file')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">settings_backup_restore</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Restore Data from File</p>
+<p class="font-body-sm text-xs text-slate-500">Import existing LakExpense offline vault</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+<!-- Export Financial Reports -->
+<button class="w-full p-4 flex items-center justify-between text-left hover:bg-surface-container-low active:bg-surface-container transition-colors" onclick="showToast('Compiling CSV / PDF report for LKR Accounts...')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Export Financial Statements</p>
+<p class="font-body-sm text-xs text-slate-500">CSV/PDF for Keells, Commercial Bank, Tax</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- SECTION 5: Appearance & Customization -->
+<div class="flex flex-col gap-1.5">
+<h3 class="font-label-md text-xs font-bold text-emerald-800 uppercase tracking-wider px-1">Appearance &amp; Categories</h3>
+<div class="rounded-2xl bg-surface-container-lowest border border-surface-dim/60 shadow-sm p-4 flex flex-col gap-4">
+<!-- Segmented Theme Controller -->
+<div class="flex flex-col gap-2">
+<label class="font-label-lg text-sm font-semibold text-slate-900">Display Theme</label>
+<div class="grid grid-cols-3 gap-1.5 p-1 bg-surface-container-low rounded-xl border border-surface-dim/50">
+<!-- Dark Theme -->
+<button class="theme-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-slate-600 hover:text-slate-900 font-label-md text-xs transition-all" onclick="setThemeOption(this, 'Dark')" type="button">
+<span class="material-symbols-outlined text-[16px]">dark_mode</span>
+<span>Dark</span>
+</button>
+<!-- Light Theme (Active) -->
+<button class="theme-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-container-lowest text-emerald-700 font-semibold shadow-sm border border-emerald-200/50 font-label-md text-xs transition-all" onclick="setThemeOption(this, 'Light')" type="button">
+<span class="material-symbols-outlined text-[16px]">light_mode</span>
+<span>Light</span>
+</button>
+<!-- System Theme -->
+<button class="theme-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-slate-600 hover:text-slate-900 font-label-md text-xs transition-all" onclick="setThemeOption(this, 'System')" type="button">
+<span class="material-symbols-outlined text-[16px]">devices</span>
+<span>System</span>
+</button>
+</div>
+</div>
+<div class="h-[1px] bg-slate-100"></div>
+<!-- Haptics Toggle -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">vibration</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Keypad Haptic Feedback</p>
+<p class="font-body-sm text-xs text-slate-500">Tactile click when typing amounts</p>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 rounded-full bg-emerald-600 p-0.5 flex items-center justify-end transition-colors duration-200 cursor-pointer shadow-sm" onclick="toggleSwitch(this, 'Keypad Haptics')" role="switch" type="button">
+<span class="w-6 h-6 rounded-full bg-white shadow flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">check</span>
+</span>
+</button>
+</div>
+<div class="h-[1px] bg-slate-100"></div>
+<!-- Category Customization -->
+<button class="flex items-center justify-between text-left hover:opacity-85 transition-opacity" onclick="showToast('Opening Category Manager (14 Active Categories)')" type="button">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-low border border-surface-dim/50 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined text-[20px]">category</span>
+</div>
+<div>
+<p class="font-label-lg text-sm font-semibold text-slate-900">Manage Expense Categories</p>
+<p class="font-body-sm text-xs text-slate-500">14 active Sri Lankan presets</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5 text-slate-400">
+<span class="font-label-sm text-xs bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded font-semibold">14 Active</span>
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</button>
+</div>
+</div>
+<!-- SECTION 6: Danger Zone & App Info -->
+<div class="flex flex-col gap-1.5 mt-2">
+<h3 class="font-label-md text-xs font-bold text-red-600 uppercase tracking-wider px-1">Danger Zone</h3>
+<!-- Reset Vault Data Card -->
+<div class="rounded-2xl bg-surface-container-lowest border border-red-200 shadow-sm p-4 flex flex-col gap-3">
+<div class="flex items-start gap-3">
+<div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">delete_forever</span>
+</div>
+<div class="flex-1">
+<p class="font-label-lg text-sm font-semibold text-slate-900">Clear All Local Vault Data</p>
+<p class="font-body-sm text-xs text-slate-500 mt-0.5 leading-relaxed">
+              Permanently purges the local SQLite database and cryptographic keys. This cannot be undone unless you possess an encrypted backup file.
+            </p>
+</div>
+</div>
+<button class="w-full mt-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white active:scale-[0.98] transition-transform font-label-lg text-sm font-semibold flex items-center justify-center gap-2 shadow-sm" onclick="confirmPurge()" type="button">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+<span>Reset Vault Database</span>
+</button>
+</div>
+<!-- App Build & Offline Sovereignty Info -->
+<div class="mt-6 flex flex-col items-center text-center gap-1">
+<div class="flex items-center gap-1.5 text-emerald-700">
+<span class="material-symbols-outlined text-[16px]">shield</span>
+<span class="font-label-md text-xs font-semibold tracking-wide">100% Offline &amp; Private</span>
+</div>
+<p class="font-label-sm text-xs text-slate-500">LakExpense Android v2.4.0 (Build 20241026)</p>
+<p class="font-label-sm text-[11px] text-slate-400 mt-0.5">Zero Cloud Trackers • Encrypted on Island Device</p>
+</div>
+</div>
+</div>
+</div>
+<script>
+  function showToast(message) {
+    const toast = document.getElementById('vault-toast');
+    const msg = document.getElementById('vault-toast-msg');
+    if (!toast || !msg) return;
+
+    msg.textContent = message;
+    toast.classList.remove('-translate-y-24', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+
+    setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('-translate-y-24', 'opacity-0', 'pointer-events-none');
+    }, 2400);
+  }
+
+  function toggleSwitch(buttonEl, label) {
+    const isChecked = buttonEl.getAttribute('aria-checked') === 'true';
+    const newState = !isChecked;
+    buttonEl.setAttribute('aria-checked', String(newState));
+
+    const thumb = buttonEl.querySelector('span');
+    const icon = thumb ? thumb.querySelector('.material-symbols-outlined') : null;
+
+    if (newState) {
+      buttonEl.className = "w-12 h-7 rounded-full bg-emerald-600 p-0.5 flex items-center justify-end transition-colors duration-200 cursor-pointer shadow-sm";
+      if (thumb) thumb.className = "w-6 h-6 rounded-full bg-white shadow flex items-center justify-center";
+      if (icon) {
+        icon.textContent = "check";
+        icon.className = "material-symbols-outlined text-[14px] text-emerald-600";
+      }
+      showToast(label + ' Enabled');
+    } else {
+      buttonEl.className = "w-12 h-7 rounded-full bg-slate-300 p-0.5 flex items-center justify-start transition-colors duration-200 cursor-pointer shadow-sm";
+      if (thumb) thumb.className = "w-6 h-6 rounded-full bg-white shadow flex items-center justify-center";
+      if (icon) {
+        icon.textContent = "close";
+        icon.className = "material-symbols-outlined text-[14px] text-slate-400";
+      }
+      showToast(label + ' Disabled');
+    }
+  }
+
+  function setThemeOption(buttonEl, modeName) {
+    const buttons = document.querySelectorAll('.theme-btn');
+    buttons.forEach((btn) => {
+      btn.className = "theme-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-slate-600 hover:text-slate-900 font-label-md text-xs transition-all";
+    });
+    buttonEl.className = "theme-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-container-lowest text-emerald-700 font-semibold shadow-sm border border-emerald-200/50 font-label-md text-xs transition-all";
+    showToast('Theme switched to ' + modeName);
+  }
+
+  function confirmPurge() {
+    if (confirm("Are you sure? This will wipe the SQLite ledger, zero all Rupee accounts, and destroy encryption keys.")) {
+      showToast("Vault reset initiated. Reloading clean state...");
+    }
+  }
+</script></main></body></html>
