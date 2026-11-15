@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TheaterComedy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import java.util.concurrent.ConcurrentHashMap
 
 object CategoryIconMapper {
     val availableIcons: List<Pair<String, ImageVector>> = listOf(
@@ -52,14 +53,23 @@ object CategoryIconMapper {
         "category" to Icons.Outlined.Category
     )
 
+    private val iconMap: Map<String, ImageVector> = availableIcons.toMap()
+    private val colorCache = ConcurrentHashMap<String, Color>()
+
     fun iconForKey(key: String?): ImageVector {
-        return availableIcons.firstOrNull { it.first == key }?.second ?: Icons.Outlined.Category
+        if (key == null) return Icons.Outlined.Category
+        return iconMap[key] ?: Icons.Outlined.Category
     }
 
     fun parseColor(hex: String?, fallback: Color): Color {
         if (hex.isNullOrBlank()) return fallback
+        colorCache[hex]?.let { return it }
         return try {
-            Color(android.graphics.Color.parseColor(hex))
+            val parsed = Color(android.graphics.Color.parseColor(hex))
+            if (colorCache.size < 128) {
+                colorCache.putIfAbsent(hex, parsed)
+            }
+            parsed
         } catch (_: Exception) {
             fallback
         }

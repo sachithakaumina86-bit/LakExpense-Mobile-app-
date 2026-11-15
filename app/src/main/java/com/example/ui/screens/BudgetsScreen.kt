@@ -97,6 +97,9 @@ fun BudgetsScreen(
             BudgetFilter.OVERSPENT -> state.categoryBudgets.filter { it.isOverspent }
         }
     }
+    val topWarning = remember(state.categoryBudgets) {
+        state.categoryBudgets.firstOrNull { it.isOverspent || it.isNearLimit }
+    }
 
     Box(
         modifier = modifier
@@ -113,7 +116,7 @@ fun BudgetsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Month Navigator + "+ New Budget" pill
-            item {
+            item(key = "month_nav", contentType = "month_nav") {
                 MonthNavigatorHeader(
                     monthLabel = "${state.cycleLabel} •",
                     onPrevMonth = onPrevMonth,
@@ -150,7 +153,7 @@ fun BudgetsScreen(
             }
 
             // Cycle Countdown Banner
-            item {
+            item(key = "cycle_banner", contentType = "cycle_banner") {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = colors.surfaceContainer,
@@ -190,7 +193,7 @@ fun BudgetsScreen(
             }
 
             // Hero Total Monthly Budget Card
-            item {
+            item(key = "overall_card", contentType = "overall_card") {
                 val isOver = state.overallCapCents > 0L && state.overallSpentCents > state.overallCapCents
                 val isNear = !isOver && state.overallPercentUsed >= settings.defaultAlertThresholdPercent
                 val statusLabel = when {
@@ -425,9 +428,8 @@ fun BudgetsScreen(
             }
 
             // Dynamic Category Pace Warning Banner (only shown when real warnings exist)
-            val topWarning = state.categoryBudgets.firstOrNull { it.isOverspent || it.isNearLimit }
             if (topWarning != null) {
-                item {
+                item(key = "warning_banner", contentType = "warning_banner") {
                     val accent = if (topWarning.isOverspent) colors.expense else colors.warning
                     val bg = if (topWarning.isOverspent) colors.expenseContainer.copy(alpha = 0.25f) else colors.warningContainer
                     Surface(
@@ -465,7 +467,7 @@ fun BudgetsScreen(
             }
 
             // Filter Chips + History Button
-            item {
+            item(key = "filter_chips", contentType = "filter_chips") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -525,7 +527,7 @@ fun BudgetsScreen(
             }
 
             // Category Breakdown Header
-            item {
+            item(key = "breakdown_header", contentType = "breakdown_header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -545,7 +547,7 @@ fun BudgetsScreen(
             }
 
             if (visibleCategoryCards.isEmpty()) {
-                item {
+                item(key = "empty_budgets", contentType = "empty_budgets") {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = colors.surfaceContainer,
@@ -571,7 +573,11 @@ fun BudgetsScreen(
                     }
                 }
             } else {
-                items(visibleCategoryCards, key = { it.budget.id }) { card ->
+                items(
+                    items = visibleCategoryCards,
+                    key = { it.budget.id },
+                    contentType = { "budget_card" }
+                ) { card ->
                     CategoryBudgetCard(
                         card = card,
                         daysRemaining = state.daysRemainingInCycle,
@@ -582,7 +588,7 @@ fun BudgetsScreen(
             }
 
             // Add Category Budget CTA button
-            item {
+            item(key = "add_cta", contentType = "add_cta") {
                 Surface(
                     onClick = { showAddNewBudgetDialog = true },
                     shape = RoundedCornerShape(16.dp),
@@ -613,7 +619,7 @@ fun BudgetsScreen(
                 }
             }
 
-            item {
+            item(key = "vault_footer", contentType = "vault_footer") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -755,7 +761,12 @@ private fun CategoryBudgetCard(
     onClick: () -> Unit
 ) {
     val colors = LakTheme.colors
-    val catColor = CategoryIconMapper.parseColor(card.category.colorHex, colors.primary)
+    val catColor = remember(card.category.colorHex, colors.primary) {
+        CategoryIconMapper.parseColor(card.category.colorHex, colors.primary)
+    }
+    val catIcon = remember(card.category.iconKey) {
+        CategoryIconMapper.iconForKey(card.category.iconKey)
+    }
     val statusColor = when {
         card.isOverspent -> colors.expense
         card.isNearLimit -> colors.warning
@@ -766,6 +777,26 @@ private fun CategoryBudgetCard(
         card.isNearLimit -> "Near Limit (${card.percentUsed}%)"
         card.percentUsed <= 50 -> "Under Budget"
         else -> "Good Pace (${card.percentUsed}%)"
+    }
+    val spentFormatted = remember(card.spentCents, settings.currencyOption) {
+        "Spent: ${MoneyMath.formatAmount(card.spentCents, settings.currencyOption, includeDecimals = false)}"
+    }
+    val remainingFormatted = remember(card.remainingCents, settings.currencyOption) {
+        if (card.remainingCents >= 0L) {
+            "Remaining: ${MoneyMath.formatAmount(card.remainingCents, settings.currencyOption, includeDecimals = false)}"
+        } else {
+            "Over: ${MoneyMath.formatAmount(abs(card.remainingCents), settings.currencyOption, includeDecimals = false)}"
+        }
+    }
+    val capFormatted = remember(card.budget.limitCents, settings.currencyOption) {
+        "Cap: ${MoneyMath.formatAmount(card.budget.limitCents, settings.currencyOption, includeDecimals = false)}"
+    }
+    val paceFormatted = remember(card.remainingCents, daysRemaining, card.safeDailyPaceCents, card.percentUsed, settings.currencyOption) {
+        if (card.remainingCents > 0L && daysRemaining > 0) {
+            "${MoneyMath.formatAmount(card.safeDailyPaceCents, settings.currencyOption, includeDecimals = false)}/day left"
+        } else {
+            "${card.percentUsed}% spent"
+        }
     }
 
     Surface(
@@ -798,7 +829,7 @@ private fun CategoryBudgetCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CategoryIconMapper.iconForKey(card.category.iconKey),
+                            imageVector = catIcon,
                             contentDescription = card.category.name,
                             tint = catColor,
                             modifier = Modifier.size(21.dp)
@@ -842,16 +873,12 @@ private fun CategoryBudgetCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Spent: ${MoneyMath.formatAmount(card.spentCents, settings.currencyOption, includeDecimals = false)}",
+                    text = spentFormatted,
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.onSurface
                 )
                 Text(
-                    text = if (card.remainingCents >= 0L) {
-                        "Remaining: ${MoneyMath.formatAmount(card.remainingCents, settings.currencyOption, includeDecimals = false)}"
-                    } else {
-                        "Over: ${MoneyMath.formatAmount(abs(card.remainingCents), settings.currencyOption, includeDecimals = false)}"
-                    },
+                    text = remainingFormatted,
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = if (card.isOverspent || card.isNearLimit) statusColor else colors.primary
                 )
@@ -878,16 +905,12 @@ private fun CategoryBudgetCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Cap: ${MoneyMath.formatAmount(card.budget.limitCents, settings.currencyOption, includeDecimals = false)}",
+                    text = capFormatted,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
                 Text(
-                    text = if (card.remainingCents > 0L && daysRemaining > 0) {
-                        "${MoneyMath.formatAmount(card.safeDailyPaceCents, settings.currencyOption, includeDecimals = false)}/day left"
-                    } else {
-                        "${card.percentUsed}% spent"
-                    },
+                    text = paceFormatted,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (card.isNearLimit || card.isOverspent) statusColor else colors.onSurfaceVariant
                 )

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.CategoryEntity
 import com.example.data.local.PaymentMethodEntity
 import com.example.data.local.TransactionEntity
+import com.example.data.local.UserProfileEntity
 import com.example.data.model.AppSettings
 import com.example.data.model.AutoLockOption
 import com.example.data.model.BudgetFilter
@@ -21,6 +22,7 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.TransactionFilterState
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
+import com.example.data.model.TransactionsListUiState
 import com.example.data.model.VaultStats
 import com.example.data.repository.LakExpenseRepository
 import com.example.domain.FinanceEngine
@@ -36,7 +38,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +83,9 @@ class MainViewModel(
     val settings: StateFlow<AppSettings> = repository.settingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
+    val userProfile: StateFlow<UserProfileEntity?> = repository.profileFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val categories: StateFlow<List<CategoryEntity>> = repository.categoriesFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -90,7 +98,8 @@ class MainViewModel(
         repository.paymentMethodsFlow
     ) { txs, cats, methods ->
         FinanceEngine.mapTransactionItems(txs, cats, methods)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val filteredTransactions: StateFlow<List<TransactionItem>> = combine(
         allTransactionItems,
@@ -99,7 +108,13 @@ class MainViewModel(
         settings
     ) { items, filter, ym, cfg ->
         FinanceEngine.filterTransactions(items, filter, ym, cfg.cycleStartDay)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val transactionsListState: StateFlow<TransactionsListUiState> = filteredTransactions
+        .map { items -> FinanceEngine.groupTransactionsByDay(items) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsListUiState())
 
     val dashboardState: StateFlow<DashboardUiState> = combine(
         repository.profileFlow,
@@ -120,7 +135,13 @@ class MainViewModel(
         val cfg = args[4] as AppSettings
         val ym = args[5] as String
         FinanceEngine.computeDashboard(profile, items, cats, budgets, cfg, ym)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+
+    val budgetAlertCount: StateFlow<Int> = dashboardState
+        .map { it.alerts.size }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val budgetsState: StateFlow<BudgetsUiState> = combine(
         allTransactionItems,
@@ -140,7 +161,8 @@ class MainViewModel(
         val ym = args[4] as String
         val filter = args[5] as BudgetFilter
         FinanceEngine.computeBudgets(items, cats, budgets, cfg, ym, filter)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BudgetsUiState())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BudgetsUiState())
 
     val reportsState: StateFlow<ReportsUiState> = combine(
         allTransactionItems,
@@ -172,7 +194,8 @@ class MainViewModel(
             customStartMillis = customRange.first,
             customEndMillis = customRange.second
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportsUiState())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportsUiState())
 
     init {
         viewModelScope.launch {
@@ -545,6 +568,69 @@ class MainViewModel(
         }
     }
 
+    fun exportCurrentCsvToUri(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                val report = computeCurrentReportSnapshot()
+                val cfg = settings.value
+                withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openOutputStream(uri)?.use { out ->
+                        exportManager.writeCsv(out, report.filteredTransactions, cfg.dateFormat, cfg.currencyOption)
+                    } ?: error("Cannot open destination URI")
+                }
+            }.onSuccess {
+                _snackbarEvents.emit("CSV financial ledger exported")
+            }.onFailure {
+                _snackbarEvents.emit("CSV export failed")
+            }
+        }
+    }
+
+    fun exportCurrentPdfToUri(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                val report = computeCurrentReportSnapshot()
+                val cfg = settings.value
+                val owner = userProfile.value?.fullName ?: "LakExpense User"
+                withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openOutputStream(uri)?.use { out ->
+                        exportManager.writePdfStatement(
+                            outputStream = out,
+                            ownerName = owner,
+                            periodLabel = report.rangeLabel,
+                            totalInflowCents = report.totalInflowCents,
+                            totalOutflowCents = report.totalOutflowCents,
+                            netCashFlowCents = report.netCashFlowCents,
+                            categoryBreakdown = report.categoryDistribution,
+                            items = report.filteredTransactions,
+                            dateFormat = cfg.dateFormat,
+                            currency = cfg.currencyOption
+                        )
+                    } ?: error("Cannot open destination URI")
+                }
+            }.onSuccess {
+                _snackbarEvents.emit("PDF financial statement exported")
+            }.onFailure {
+                _snackbarEvents.emit("PDF export failed")
+            }
+        }
+    }
+
+    private suspend fun computeCurrentReportSnapshot(): ReportsUiState = withContext(Dispatchers.Default) {
+        val budgets = repository.budgetsFlow.first()
+        val customRange = _reportCustomRange.value
+        FinanceEngine.computeReports(
+            items = allTransactionItems.value,
+            categories = categories.value,
+            budgets = budgets,
+            settings = settings.value,
+            selectedYearMonth = _selectedYearMonth.value,
+            period = _reportPeriod.value,
+            customStartMillis = customRange.first,
+            customEndMillis = customRange.second
+        )
+    }
+
     fun exportCsvToUri(uri: Uri, items: List<TransactionItem>) {
         viewModelScope.launch {
             runCatching {
@@ -566,7 +652,7 @@ class MainViewModel(
         viewModelScope.launch {
             runCatching {
                 val cfg = settings.value
-                val owner = dashboardState.value.profile?.fullName ?: "LakExpense User"
+                val owner = userProfile.value?.fullName ?: dashboardState.value.profile?.fullName ?: "LakExpense User"
                 withContext(Dispatchers.IO) {
                     appContext.contentResolver.openOutputStream(uri)?.use { out ->
                         exportManager.writePdfStatement(

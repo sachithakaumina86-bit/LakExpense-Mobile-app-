@@ -62,18 +62,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.data.local.CategoryEntity
 import com.example.data.local.PaymentMethodEntity
 import com.example.data.model.AppSettings
 import com.example.data.model.TransactionFilterState
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
+import com.example.data.model.TransactionsListUiState
 import com.example.ui.components.CategoryIconMapper
 import com.example.ui.theme.LakTheme
 import com.example.util.DateUtils
@@ -83,7 +86,7 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
-    items: List<TransactionItem>,
+    listState: TransactionsListUiState,
     filterState: TransactionFilterState,
     selectedYearMonth: String,
     categories: List<CategoryEntity>,
@@ -97,24 +100,16 @@ fun TransactionsScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = LakTheme.colors
+    val context = LocalContext.current
     var showFilterSheet by remember { mutableStateOf(false) }
     var showDateRangePicker by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<TransactionItem?>(null) }
     var deleteConfirmId by remember { mutableStateOf<Long?>(null) }
 
-    val totalSpent = remember(items) {
-        items.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
-    }
-    val totalEarned = remember(items) {
-        items.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-    }
-    val netCash = totalEarned - totalSpent
-
-    val groupedByDay = remember(items) {
-        items.groupBy { DateUtils.startOfDay(it.entity.timestamp) }
-            .entries
-            .sortedByDescending { it.key }
-    }
+    val totalSpent = listState.totalSpentCents
+    val totalEarned = listState.totalEarnedCents
+    val netCash = listState.netCashCents
+    val dayGroups = listState.dayGroups
 
     Box(
         modifier = modifier
@@ -131,7 +126,7 @@ fun TransactionsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Search Bar + Filter Button
-            item {
+            item(key = "search_bar", contentType = "search_bar") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -221,7 +216,7 @@ fun TransactionsScreen(
             }
 
             // Horizontal Quick Filter Chips
-            item {
+            item(key = "quick_filters", contentType = "quick_filters") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -272,17 +267,28 @@ fun TransactionsScreen(
             }
 
             // Summary Card matching Stitch OCTOBER NET OUTFLOW card
-            item {
-                val monthHeader = if (filterState.customStartMillis != null && filterState.customEndMillis != null) {
-                    DateUtils.formatRangeLabel(filterState.customStartMillis, filterState.customEndMillis).uppercase()
-                } else if (filterState.useSelectedMonth) {
-                    DateUtils.formatMonthYear(selectedYearMonth).substringBefore(" ").uppercase()
-                } else {
-                    "ALL-TIME"
+            item(key = "summary_card", contentType = "summary_card") {
+                val monthHeader = remember(filterState.customStartMillis, filterState.customEndMillis, filterState.useSelectedMonth, selectedYearMonth) {
+                    if (filterState.customStartMillis != null && filterState.customEndMillis != null) {
+                        DateUtils.formatRangeLabel(filterState.customStartMillis, filterState.customEndMillis).uppercase()
+                    } else if (filterState.useSelectedMonth) {
+                        DateUtils.formatMonthYear(selectedYearMonth).substringBefore(" ").uppercase()
+                    } else {
+                        "ALL-TIME"
+                    }
                 }
                 val isNetNegative = netCash < 0L
                 val totalFlow = (totalSpent + totalEarned).coerceAtLeast(1L)
                 val expenseShare = (totalSpent.toFloat() / totalFlow.toFloat()).coerceIn(0f, 1f)
+                val netFormatted = remember(netCash, settings.currencyOption) {
+                    MoneyMath.formatAmount(netCash, settings.currencyOption, showSign = true)
+                }
+                val spentFormatted = remember(totalSpent, settings.currencyOption) {
+                    MoneyMath.formatAmount(totalSpent, settings.currencyOption)
+                }
+                val earnedFormatted = remember(totalEarned, settings.currencyOption) {
+                    MoneyMath.formatAmount(totalEarned, settings.currencyOption)
+                }
 
                 Surface(
                     shape = RoundedCornerShape(18.dp),
@@ -324,11 +330,7 @@ fun TransactionsScreen(
                                         color = colors.onSurfaceVariant
                                     )
                                     Text(
-                                        text = if (settings.balanceHidden) "••••••••" else MoneyMath.formatAmount(
-                                            netCash,
-                                            settings.currencyOption,
-                                            showSign = true
-                                        ),
+                                        text = if (settings.balanceHidden) "••••••••" else netFormatted,
                                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                                         color = if (isNetNegative) colors.expense else colors.income
                                     )
@@ -342,7 +344,7 @@ fun TransactionsScreen(
                                     color = colors.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "${items.size} logs",
+                                    text = "${listState.totalCount} logs",
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                     color = colors.onSurface
                                 )
@@ -381,7 +383,7 @@ fun TransactionsScreen(
                                         .background(colors.expense)
                                 )
                                 Text(
-                                    text = "Spent: ${if (settings.balanceHidden) "••••" else MoneyMath.formatAmount(totalSpent, settings.currencyOption)}",
+                                    text = "Spent: ${if (settings.balanceHidden) "••••" else spentFormatted}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = colors.onSurface
                                 )
@@ -397,7 +399,7 @@ fun TransactionsScreen(
                                         .background(colors.income)
                                 )
                                 Text(
-                                    text = "Earned: ${if (settings.balanceHidden) "••••" else MoneyMath.formatAmount(totalEarned, settings.currencyOption)}",
+                                    text = "Earned: ${if (settings.balanceHidden) "••••" else earnedFormatted}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = colors.onSurface
                                 )
@@ -407,8 +409,8 @@ fun TransactionsScreen(
                 }
             }
 
-            if (items.isEmpty()) {
-                item {
+            if (dayGroups.isEmpty()) {
+                item(key = "empty_state", contentType = "empty_state") {
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = colors.surfaceContainer,
@@ -456,13 +458,17 @@ fun TransactionsScreen(
                     }
                 }
             } else {
-                groupedByDay.forEach { (dayStart, dayItems) ->
-                    val (dayPrefix, dayDateStr) = DateUtils.formatRelativeDayHeader(dayStart)
-                    val dayIncome = dayItems.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-                    val dayExpense = dayItems.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
-                    val dayNet = dayIncome - dayExpense
-
-                    item(key = "header_$dayStart") {
+                dayGroups.forEach { group ->
+                    item(key = "header_${group.dayStartMillis}", contentType = "day_header") {
+                        val dayNetFormatted = remember(group.dayNetCents, settings.currencyOption) {
+                            if (group.dayNetCents != 0L) {
+                                MoneyMath.formatAmount(
+                                    group.dayNetCents,
+                                    settings.currencyOption,
+                                    showSign = true
+                                )
+                            } else null
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -472,32 +478,32 @@ fun TransactionsScreen(
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
-                                    text = dayPrefix,
+                                    text = group.dayPrefix,
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                     color = colors.onSurface
                                 )
                                 Text("•", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
                                 Text(
-                                    text = dayDateStr,
+                                    text = group.dayDateStr,
                                     style = MaterialTheme.typography.labelLarge,
                                     color = colors.onSurfaceVariant
                                 )
                             }
-                            if (dayNet != 0L) {
+                            if (dayNetFormatted != null) {
                                 Text(
-                                    text = if (settings.balanceHidden) "••••" else MoneyMath.formatAmount(
-                                        dayNet,
-                                        settings.currencyOption,
-                                        showSign = true
-                                    ),
+                                    text = if (settings.balanceHidden) "••••" else dayNetFormatted,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (dayNet > 0L) colors.income else colors.expense
+                                    color = if (group.dayNetCents > 0L) colors.income else colors.expense
                                 )
                             }
                         }
                     }
 
-                    items(dayItems, key = { it.entity.id }) { item ->
+                    items(
+                        items = group.items,
+                        key = { it.entity.id },
+                        contentType = { "tx_card" }
+                    ) { item ->
                         TransactionHistoryCard(
                             item = item,
                             settings = settings,
@@ -580,8 +586,15 @@ fun TransactionsScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.onSurfaceVariant
                     )
+                    val receiptModel = remember(tx.receiptPath, context) {
+                        ImageRequest.Builder(context)
+                            .data(File(tx.receiptPath))
+                            .size(800)
+                            .crossfade(true)
+                            .build()
+                    }
                     AsyncImage(
-                        model = File(tx.receiptPath),
+                        model = receiptModel,
                         contentDescription = "Receipt image",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -907,21 +920,35 @@ private fun TransactionHistoryCard(
 ) {
     val colors = LakTheme.colors
     val tx = item.entity
-    val accent = when (tx.type) {
-        TransactionType.INCOME -> colors.income
-        TransactionType.TRANSFER -> colors.transfer
-        TransactionType.EXPENSE -> CategoryIconMapper.parseColor(item.category?.colorHex, colors.expense)
+    val accent = remember(tx.type, item.category?.colorHex, colors.income, colors.transfer, colors.expense) {
+        when (tx.type) {
+            TransactionType.INCOME -> colors.income
+            TransactionType.TRANSFER -> colors.transfer
+            TransactionType.EXPENSE -> CategoryIconMapper.parseColor(item.category?.colorHex, colors.expense)
+        }
     }
-    val title = tx.merchant.ifBlank { item.category?.name ?: tx.type.label }
-    val methodText = if (tx.type == TransactionType.TRANSFER && item.toPaymentMethod != null) {
-        "${item.paymentMethod?.name ?: "From"} → ${item.toPaymentMethod.name}"
-    } else {
-        item.paymentMethod?.name ?: "Cash"
+    val categoryIcon = remember(item.category?.iconKey) {
+        CategoryIconMapper.iconForKey(item.category?.iconKey)
     }
-    val amountText = when (tx.type) {
-        TransactionType.INCOME -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = true)
-        TransactionType.EXPENSE -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = false)
-        TransactionType.TRANSFER -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption)
+    val title = remember(tx.merchant, item.category?.name, tx.type) {
+        tx.merchant.ifBlank { item.category?.name ?: tx.type.label }
+    }
+    val methodText = remember(tx.type, item.paymentMethod?.name, item.toPaymentMethod?.name) {
+        if (tx.type == TransactionType.TRANSFER && item.toPaymentMethod != null) {
+            "${item.paymentMethod?.name ?: "From"} → ${item.toPaymentMethod.name}"
+        } else {
+            item.paymentMethod?.name ?: "Cash"
+        }
+    }
+    val amountText = remember(tx.type, tx.amountCents, settings.currencyOption) {
+        when (tx.type) {
+            TransactionType.INCOME -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = true)
+            TransactionType.EXPENSE -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = false)
+            TransactionType.TRANSFER -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption)
+        }
+    }
+    val timeSummary = remember(tx.timestamp, tx.receiptPath) {
+        DateUtils.formatTime(tx.timestamp) + if (!tx.receiptPath.isNullOrBlank()) " • Receipt" else ""
     }
 
     Surface(
@@ -952,7 +979,7 @@ private fun TransactionHistoryCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = CategoryIconMapper.iconForKey(item.category?.iconKey),
+                        imageVector = categoryIcon,
                         contentDescription = title,
                         tint = accent,
                         modifier = Modifier.size(22.dp)
@@ -993,7 +1020,7 @@ private fun TransactionHistoryCard(
                         }
                     }
                     Text(
-                        text = DateUtils.formatTime(tx.timestamp) + if (!tx.receiptPath.isNullOrBlank()) " • Receipt" else "",
+                        text = timeSummary,
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant
                     )

@@ -88,4 +88,96 @@ class FinanceEngineUnitTest {
         assertEquals(14_250_000L, reports.netCashFlowCents)
         assertEquals(77, reports.savingsRatePercent)
     }
+
+    @Test
+    fun `MoneyMath formatIntegerGroup matches US grouping`() {
+        assertEquals("0", MoneyMath.formatIntegerGroup(0L))
+        assertEquals("4,850", MoneyMath.formatIntegerGroup(4_850L))
+        assertEquals("1,250,000", MoneyMath.formatIntegerGroup(1_250_000L))
+    }
+
+    @Test
+    fun `FinanceEngine groupTransactionsByDay orders descending and excludes transfers from day net`() {
+        val day1Cal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 20, 14, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val day2Cal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 19, 9, 30, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val catExp = CategoryEntity(id = 1L, name = "Food", subtitle = "", iconKey = "restaurant", colorHex = "#10B981", type = TransactionType.EXPENSE)
+        val catInc = CategoryEntity(id = 2L, name = "Salary", subtitle = "", iconKey = "payments", colorHex = "#34D399", type = TransactionType.INCOME)
+        val catTrf = CategoryEntity(id = 3L, name = "Transfer", subtitle = "", iconKey = "swap_horiz", colorHex = "#38BDF8", type = TransactionType.TRANSFER)
+        val cash = PaymentMethodEntity(id = 1L, name = "Cash", iconKey = "payments")
+
+        val txs = listOf(
+            TransactionEntity(id = 1L, type = TransactionType.EXPENSE, amountCents = 150_000L, categoryId = 1L, paymentMethodId = 1L, merchant = "Cafe", note = "", timestamp = day1Cal.timeInMillis),
+            TransactionEntity(id = 2L, type = TransactionType.TRANSFER, amountCents = 500_000L, categoryId = 3L, paymentMethodId = 1L, toPaymentMethodId = 1L, merchant = "ATM", note = "", timestamp = day1Cal.timeInMillis - 1000L),
+            TransactionEntity(id = 3L, type = TransactionType.INCOME, amountCents = 2_000_000L, categoryId = 2L, paymentMethodId = 1L, merchant = "Freelance", note = "", timestamp = day2Cal.timeInMillis),
+            TransactionEntity(id = 4L, type = TransactionType.EXPENSE, amountCents = 50_000L, categoryId = 1L, paymentMethodId = 1L, merchant = "Bus", note = "", timestamp = day2Cal.timeInMillis - 1000L)
+        )
+        val items = FinanceEngine.mapTransactionItems(txs, listOf(catExp, catInc, catTrf), listOf(cash))
+        val grouped = FinanceEngine.groupTransactionsByDay(items, nowMillis = day1Cal.timeInMillis)
+
+        assertEquals(4, grouped.totalCount)
+        assertEquals(200_000L, grouped.totalSpentCents)
+        assertEquals(2_000_000L, grouped.totalEarnedCents)
+        assertEquals(1_800_000L, grouped.netCashCents)
+        assertEquals(2, grouped.dayGroups.size)
+
+        // Most recent day first ("Today")
+        assertEquals("Today", grouped.dayGroups[0].dayPrefix)
+        assertEquals(-150_000L, grouped.dayGroups[0].dayNetCents)
+        assertEquals(2, grouped.dayGroups[0].items.size)
+
+        // Older day second ("Yesterday")
+        assertEquals("Yesterday", grouped.dayGroups[1].dayPrefix)
+        assertEquals(1_950_000L, grouped.dayGroups[1].dayNetCents)
+        assertEquals(2, grouped.dayGroups[1].items.size)
+    }
+
+    @Test
+    fun `FinanceEngine single-pass aggregations remain exact across 1000 transactions`() {
+        val nowCal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 20, 12, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val now = nowCal.timeInMillis
+        val cat1 = CategoryEntity(id = 1L, name = "Groceries", subtitle = "", iconKey = "shopping_cart", colorHex = "#10B981", type = TransactionType.EXPENSE)
+        val cat2 = CategoryEntity(id = 2L, name = "Utilities", subtitle = "", iconKey = "bolt", colorHex = "#38BDF8", type = TransactionType.EXPENSE)
+        val catInc = CategoryEntity(id = 3L, name = "Salary", subtitle = "", iconKey = "payments", colorHex = "#34D399", type = TransactionType.INCOME)
+        val cash = PaymentMethodEntity(id = 1L, name = "Cash", iconKey = "payments")
+
+        val txs = (0 until 1000).map { idx ->
+            val dayOffset = idx % 20
+            val ts = now - dayOffset * 86_400_000L
+            when (idx % 10) {
+                0 -> TransactionEntity(id = idx.toLong() + 1L, type = TransactionType.INCOME, amountCents = 100_000L, categoryId = 3L, paymentMethodId = 1L, merchant = "Client", note = "", timestamp = ts)
+                else -> TransactionEntity(id = idx.toLong() + 1L, type = TransactionType.EXPENSE, amountCents = 10_000L, categoryId = if (idx % 2 == 0) 1L else 2L, paymentMethodId = 1L, merchant = "Shop $idx", note = "", timestamp = ts)
+            }
+        }
+        val items = FinanceEngine.mapTransactionItems(txs, listOf(cat1, cat2, catInc), listOf(cash))
+        val budgets = listOf(
+            BudgetEntity(id = 1L, yearMonth = "2026-10", categoryId = null, limitCents = 15_000_000L, alertThresholdPercent = 80),
+            BudgetEntity(id = 2L, yearMonth = "2026-10", categoryId = 1L, limitCents = 5_000_000L, alertThresholdPercent = 80)
+        )
+        val settings = AppSettings()
+
+        // 100 income txs * 100,000 = 10,000,000; 900 expense txs * 10,000 = 9,000,000
+        val dash = FinanceEngine.computeDashboard(null, items, listOf(cat1, cat2, catInc), budgets, settings, "2026-10", now)
+        assertEquals(10_000_000L, dash.periodIncomeCents)
+        assertEquals(9_000_000L, dash.periodExpenseCents)
+        assertEquals(1_000_000L, dash.totalNetBalanceCents)
+
+        val budgetState = FinanceEngine.computeBudgets(items, listOf(cat1, cat2, catInc), budgets, settings, "2026-10", BudgetFilter.ALL, now)
+        assertEquals(9_000_000L, budgetState.overallSpentCents)
+        assertEquals(6_000_000L, budgetState.overallRemainingCents)
+
+        val reports = FinanceEngine.computeReports(items, listOf(cat1, cat2, catInc), budgets, settings, "2026-10", ReportPeriod.MONTHLY, null, null, now)
+        assertEquals(10_000_000L, reports.totalInflowCents)
+        assertEquals(9_000_000L, reports.totalOutflowCents)
+        assertEquals(1_000_000L, reports.netCashFlowCents)
+    }
 }
+

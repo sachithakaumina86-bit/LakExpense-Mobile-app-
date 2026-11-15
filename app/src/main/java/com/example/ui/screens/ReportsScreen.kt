@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -108,7 +108,7 @@ fun ReportsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Period Selector Pills: Weekly | Monthly | Quarterly | Yearly | Calendar Custom
-            item {
+            item(key = "period_selector", contentType = "period_selector") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -167,7 +167,7 @@ fun ReportsScreen(
             }
 
             // Date Range + Offline Encrypted Status Row
-            item {
+            item(key = "date_status", contentType = "date_status") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,8 +216,32 @@ fun ReportsScreen(
             }
 
             // Net Cash Flow Hero Card
-            item {
+            item(key = "net_cash_flow", contentType = "net_cash_flow") {
                 val netPositive = state.netCashFlowCents >= 0L
+                val netCashFormatted = remember(state.netCashFlowCents, settings.currencyOption) {
+                    MoneyMath.formatAmount(
+                        state.netCashFlowCents,
+                        settings.currencyOption,
+                        includeDecimals = false,
+                        showSign = true
+                    )
+                }
+                val inflowFormatted = remember(state.totalInflowCents, settings.currencyOption) {
+                    MoneyMath.formatAmount(state.totalInflowCents, settings.currencyOption, includeDecimals = false)
+                }
+                val outflowFormatted = remember(state.totalOutflowCents, settings.currencyOption) {
+                    MoneyMath.formatAmount(state.totalOutflowCents, settings.currencyOption, includeDecimals = false)
+                }
+                val burnFormatted = remember(state.avgDailyBurnCents, settings.currencyOption) {
+                    "Burn: ${MoneyMath.formatAmount(state.avgDailyBurnCents, settings.currencyOption, includeDecimals = false)}/day"
+                }
+                val capFormatted = remember(state.budgetCapCents, settings.currencyOption) {
+                    if (state.budgetCapCents > 0L) {
+                        "Cap: ${MoneyMath.formatAmount(state.budgetCapCents, settings.currencyOption, includeDecimals = false)}"
+                    } else {
+                        "Cap: Not set"
+                    }
+                }
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = colors.surfaceContainer,
@@ -264,12 +288,7 @@ fun ReportsScreen(
 
                         Column {
                             Text(
-                                text = if (settings.balanceHidden) "••••••••" else MoneyMath.formatAmount(
-                                    state.netCashFlowCents,
-                                    settings.currencyOption,
-                                    includeDecimals = false,
-                                    showSign = true
-                                ),
+                                text = if (settings.balanceHidden) "••••••••" else netCashFormatted,
                                 style = MaterialTheme.typography.displayLarge.copy(
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.Bold
@@ -299,7 +318,7 @@ fun ReportsScreen(
                                         Text("TOTAL INFLOW", style = MaterialTheme.typography.labelSmall, color = colors.income)
                                     }
                                     Text(
-                                        text = MoneyMath.formatAmount(state.totalInflowCents, settings.currencyOption, includeDecimals = false),
+                                        text = inflowFormatted,
                                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
                                         color = colors.onSurface
                                     )
@@ -325,7 +344,7 @@ fun ReportsScreen(
                                         Text("TOTAL OUTFLOW", style = MaterialTheme.typography.labelSmall, color = colors.expense)
                                     }
                                     Text(
-                                        text = MoneyMath.formatAmount(state.totalOutflowCents, settings.currencyOption, includeDecimals = false),
+                                        text = outflowFormatted,
                                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
                                         color = colors.onSurface
                                     )
@@ -347,7 +366,7 @@ fun ReportsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null, tint = colors.warning, modifier = Modifier.size(15.dp))
                                 Text(
-                                    text = "Burn: ${MoneyMath.formatAmount(state.avgDailyBurnCents, settings.currencyOption, includeDecimals = false)}/day",
+                                    text = burnFormatted,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = colors.onSurfaceVariant
                                 )
@@ -355,11 +374,7 @@ fun ReportsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Icon(Icons.Outlined.Shield, contentDescription = null, tint = colors.primary, modifier = Modifier.size(15.dp))
                                 Text(
-                                    text = if (state.budgetCapCents > 0L) {
-                                        "Cap: ${MoneyMath.formatAmount(state.budgetCapCents, settings.currencyOption, includeDecimals = false)}"
-                                    } else {
-                                        "Cap: Not set"
-                                    },
+                                    text = capFormatted,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = colors.onSurfaceVariant
                                 )
@@ -370,7 +385,7 @@ fun ReportsScreen(
             }
 
             // Spending Trajectory Interactive Spline Chart
-            item {
+            item(key = "spending_trajectory", contentType = "spending_trajectory") {
                 SpendingTrajectoryCard(
                     points = state.dailyPoints,
                     cumulativeMode = cumulativeMode,
@@ -382,7 +397,7 @@ fun ReportsScreen(
             }
 
             // Category Distribution Card
-            item {
+            item(key = "category_distribution", contentType = "category_distribution") {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = colors.surfaceContainer,
@@ -411,7 +426,9 @@ fun ReportsScreen(
                                 )
                             }
                             Text(
-                                text = MoneyMath.formatAmount(state.totalOutflowCents, settings.currencyOption, includeDecimals = false),
+                                text = remember(state.totalOutflowCents, settings.currencyOption) {
+                                    MoneyMath.formatAmount(state.totalOutflowCents, settings.currencyOption, includeDecimals = false)
+                                },
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                 color = colors.onSurface
                             )
@@ -434,17 +451,28 @@ fun ReportsScreen(
                             ) {
                                 state.categoryDistribution.forEach { catSummary ->
                                     val w = (catSummary.percentage / 100f).coerceAtLeast(0.03f)
+                                    val segColor = remember(catSummary.category.colorHex, colors.primary) {
+                                        CategoryIconMapper.parseColor(catSummary.category.colorHex, colors.primary)
+                                    }
                                     Box(
                                         modifier = Modifier
                                             .weight(w)
                                             .fillMaxHeight()
-                                            .background(CategoryIconMapper.parseColor(catSummary.category.colorHex, colors.primary))
+                                            .background(segColor)
                                     )
                                 }
                             }
 
                             state.categoryDistribution.forEach { summary ->
-                                val accent = CategoryIconMapper.parseColor(summary.category.colorHex, colors.primary)
+                                val accent = remember(summary.category.colorHex, colors.primary) {
+                                    CategoryIconMapper.parseColor(summary.category.colorHex, colors.primary)
+                                }
+                                val catIcon = remember(summary.category.iconKey) {
+                                    CategoryIconMapper.iconForKey(summary.category.iconKey)
+                                }
+                                val formattedAmount = remember(summary.totalCents, settings.currencyOption) {
+                                    MoneyMath.formatAmount(summary.totalCents, settings.currencyOption, includeDecimals = false)
+                                }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -464,7 +492,7 @@ fun ReportsScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = CategoryIconMapper.iconForKey(summary.category.iconKey),
+                                                imageVector = catIcon,
                                                 contentDescription = summary.category.name,
                                                 tint = accent,
                                                 modifier = Modifier.size(19.dp)
@@ -491,7 +519,7 @@ fun ReportsScreen(
 
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = MoneyMath.formatAmount(summary.totalCents, settings.currencyOption, includeDecimals = false),
+                                            text = formattedAmount,
                                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                             color = colors.onSurface
                                         )
@@ -509,7 +537,7 @@ fun ReportsScreen(
             }
 
             // 6-Month Income vs Expense Comparison Bar Chart
-            item {
+            item(key = "income_expense_comparison", contentType = "income_expense_comparison") {
                 IncomeVsExpenseComparisonCard(
                     bars = state.monthlyComparisons,
                     settings = settings
@@ -517,7 +545,7 @@ fun ReportsScreen(
             }
 
             // Vault Intelligence Card
-            item {
+            item(key = "vault_intelligence", contentType = "vault_intelligence") {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = colors.surfaceContainer,
@@ -634,7 +662,7 @@ fun ReportsScreen(
             }
 
             // Reports & Audit Exports
-            item {
+            item(key = "audit_exports", contentType = "audit_exports") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = "REPORTS & AUDIT EXPORTS",
@@ -723,7 +751,7 @@ fun ReportsScreen(
             }
 
             // Bottom assurance pill
-            item {
+            item(key = "privacy_footer", contentType = "privacy_footer") {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = colors.surfaceContainerLow,
@@ -847,11 +875,16 @@ private fun SpendingTrajectoryCard(
             }
 
             val selectedPoint = points.getOrNull(selectedIdx)
-            if (selectedPoint != null) {
-                val valCents = if (cumulativeMode) selectedPoint.cumulativeCents else selectedPoint.amountCents
-                val merchantSuffix = if (!cumulativeMode && selectedPoint.topMerchant.isNotBlank()) {
-                    " • ${selectedPoint.topMerchant}"
-                } else ""
+            val tooltipText = remember(selectedPoint, cumulativeMode, settings.currencyOption) {
+                selectedPoint?.let { pt ->
+                    val valCents = if (cumulativeMode) pt.cumulativeCents else pt.amountCents
+                    val merchantSuffix = if (!cumulativeMode && pt.topMerchant.isNotBlank()) {
+                        " • ${pt.topMerchant}"
+                    } else ""
+                    "${pt.dayLabel}: ${MoneyMath.formatAmount(valCents, settings.currencyOption, includeDecimals = false)}$merchantSuffix"
+                }
+            }
+            if (tooltipText != null) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = colors.surfaceContainerHighest,
@@ -864,7 +897,7 @@ private fun SpendingTrajectoryCard(
                     ) {
                         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(colors.primary))
                         Text(
-                            text = "${selectedPoint.dayLabel}: ${MoneyMath.formatAmount(valCents, settings.currencyOption, includeDecimals = false)}$merchantSuffix",
+                            text = tooltipText,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = colors.onSurface
                         )
@@ -872,19 +905,25 @@ private fun SpendingTrajectoryCard(
                 }
             }
 
-            val seriesValues = points.map { if (cumulativeMode) it.cumulativeCents else it.amountCents }
-            val benchmarkValues = remember(points, cumulativeMode) {
-                var cum = 0L
-                points.map { pt ->
-                    cum += pt.benchmarkCents
-                    if (cumulativeMode) cum else pt.benchmarkCents
+            val seriesData = remember(points, cumulativeMode) {
+                val mainVals = LongArray(points.size)
+                val benchVals = LongArray(points.size)
+                var cumBench = 0L
+                var max = 1L
+                points.forEachIndexed { idx, pt ->
+                    val mainV = if (cumulativeMode) pt.cumulativeCents else pt.amountCents
+                    cumBench += pt.benchmarkCents
+                    val benchV = if (cumulativeMode) cumBench else pt.benchmarkCents
+                    mainVals[idx] = mainV
+                    benchVals[idx] = benchV
+                    if (mainV > max) max = mainV
+                    if (benchV > max) max = benchV
                 }
+                Triple(mainVals, benchVals, max)
             }
-            val maxVal = maxOf(
-                seriesValues.maxOrNull() ?: 0L,
-                benchmarkValues.maxOrNull() ?: 0L,
-                1L
-            )
+            val seriesValues = seriesData.first
+            val benchmarkValues = seriesData.second
+            val maxVal = seriesData.third
 
             Box(
                 modifier = Modifier
@@ -900,102 +939,124 @@ private fun SpendingTrajectoryCard(
                         }
                     }
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val topPad = 14f
-                    val botPad = 12f
-                    val usableH = (h - topPad - botPad).coerceAtLeast(10f)
-                    val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithCache {
+                            val w = size.width
+                            val h = size.height
+                            val topPad = 14f
+                            val botPad = 12f
+                            val usableH = (h - topPad - botPad).coerceAtLeast(10f)
+                            val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+                            val gridY0 = topPad + usableH * 0.25f
+                            val gridY1 = topPad + usableH * 0.55f
+                            val gridY2 = topPad + usableH * 0.85f
+                            val gridColor = colors.chartGrid
+                            val benchColor = colors.chartBenchmark
+                            val primaryColor = colors.primary
+                            val surfaceColor = colors.surface
+                            val selLineColor = colors.primary.copy(alpha = 0.45f)
+                            val selHaloColor = colors.primary.copy(alpha = 0.3f)
+                            val benchStroke = Stroke(width = 3f, pathEffect = dash)
+                            val mainStroke = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-                    listOf(0.25f, 0.55f, 0.85f).forEach { frac ->
-                        drawLine(
-                            color = colors.chartGrid,
-                            start = Offset(0f, topPad + usableH * frac),
-                            end = Offset(w, topPad + usableH * frac),
-                            strokeWidth = 1.2f,
-                            pathEffect = dash
-                        )
-                    }
+                            if (points.size >= 2) {
+                                val stepX = w / (points.size - 1)
+                                val maxFloat = maxVal.toFloat()
 
-                    if (points.size >= 2) {
-                        val stepX = w / (points.size - 1)
-                        val benchCoords = benchmarkValues.mapIndexed { idx, v ->
-                            Offset(idx * stepX, topPad + usableH * (1f - (v.toFloat() / maxVal.toFloat())))
-                        }
-                        val benchPath = Path().apply {
-                            moveTo(benchCoords.first().x, benchCoords.first().y)
-                            for (i in 0 until benchCoords.lastIndex) {
-                                val c = benchCoords[i]
-                                val n = benchCoords[i + 1]
-                                val cx = (c.x + n.x) / 2f
-                                cubicTo(cx, c.y, cx, n.y, n.x, n.y)
+                                val benchPath = Path()
+                                var bPrevX = 0f
+                                var bPrevY = 0f
+                                for (idx in benchmarkValues.indices) {
+                                    val x = idx * stepX
+                                    val y = topPad + usableH * (1f - (benchmarkValues[idx].toFloat() / maxFloat))
+                                    if (idx == 0) {
+                                        benchPath.moveTo(x, y)
+                                    } else {
+                                        val cx = (bPrevX + x) / 2f
+                                        benchPath.cubicTo(cx, bPrevY, cx, y, x, y)
+                                    }
+                                    bPrevX = x
+                                    bPrevY = y
+                                }
+
+                                val mainPath = Path()
+                                val mainCoords = Array(seriesValues.size) { Offset.Zero }
+                                var mPrevX = 0f
+                                var mPrevY = 0f
+                                for (idx in seriesValues.indices) {
+                                    val x = idx * stepX
+                                    val y = topPad + usableH * (1f - (seriesValues[idx].toFloat() / maxFloat))
+                                    mainCoords[idx] = Offset(x, y)
+                                    if (idx == 0) {
+                                        mainPath.moveTo(x, y)
+                                    } else {
+                                        val cx = (mPrevX + x) / 2f
+                                        mainPath.cubicTo(cx, mPrevY, cx, y, x, y)
+                                    }
+                                    mPrevX = x
+                                    mPrevY = y
+                                }
+
+                                val fillPath = Path().apply {
+                                    addPath(mainPath)
+                                    lineTo(mainCoords.last().x, h)
+                                    lineTo(mainCoords.first().x, h)
+                                    close()
+                                }
+                                val fillBrush = Brush.verticalGradient(
+                                    listOf(primaryColor.copy(alpha = 0.28f), primaryColor.copy(alpha = 0f))
+                                )
+
+                                onDrawBehind {
+                                    drawLine(color = gridColor, start = Offset(0f, gridY0), end = Offset(w, gridY0), strokeWidth = 1.2f, pathEffect = dash)
+                                    drawLine(color = gridColor, start = Offset(0f, gridY1), end = Offset(w, gridY1), strokeWidth = 1.2f, pathEffect = dash)
+                                    drawLine(color = gridColor, start = Offset(0f, gridY2), end = Offset(w, gridY2), strokeWidth = 1.2f, pathEffect = dash)
+
+                                    drawPath(path = benchPath, color = benchColor, style = benchStroke)
+                                    drawPath(path = fillPath, brush = fillBrush)
+                                    drawPath(path = mainPath, color = primaryColor, style = mainStroke)
+
+                                    val sel = mainCoords.getOrNull(selectedIdx)
+                                    if (sel != null) {
+                                        drawLine(
+                                            color = selLineColor,
+                                            start = Offset(sel.x, sel.y),
+                                            end = Offset(sel.x, h),
+                                            strokeWidth = 2f,
+                                            pathEffect = dash
+                                        )
+                                        drawCircle(color = selHaloColor, radius = 14f, center = sel)
+                                        drawCircle(color = surfaceColor, radius = 8f, center = sel)
+                                        drawCircle(color = primaryColor, radius = 5.5f, center = sel)
+                                    }
+                                }
+                            } else {
+                                onDrawBehind {
+                                    drawLine(color = gridColor, start = Offset(0f, gridY0), end = Offset(w, gridY0), strokeWidth = 1.2f, pathEffect = dash)
+                                    drawLine(color = gridColor, start = Offset(0f, gridY1), end = Offset(w, gridY1), strokeWidth = 1.2f, pathEffect = dash)
+                                    drawLine(color = gridColor, start = Offset(0f, gridY2), end = Offset(w, gridY2), strokeWidth = 1.2f, pathEffect = dash)
+                                }
                             }
                         }
-                        drawPath(
-                            path = benchPath,
-                            color = colors.chartBenchmark,
-                            style = Stroke(width = 3f, pathEffect = dash)
-                        )
-
-                        val mainCoords = seriesValues.mapIndexed { idx, v ->
-                            Offset(idx * stepX, topPad + usableH * (1f - (v.toFloat() / maxVal.toFloat())))
-                        }
-                        val mainPath = Path().apply {
-                            moveTo(mainCoords.first().x, mainCoords.first().y)
-                            for (i in 0 until mainCoords.lastIndex) {
-                                val c = mainCoords[i]
-                                val n = mainCoords[i + 1]
-                                val cx = (c.x + n.x) / 2f
-                                cubicTo(cx, c.y, cx, n.y, n.x, n.y)
-                            }
-                        }
-                        val fillPath = Path().apply {
-                            addPath(mainPath)
-                            lineTo(mainCoords.last().x, h)
-                            lineTo(mainCoords.first().x, h)
-                            close()
-                        }
-                        drawPath(
-                            path = fillPath,
-                            brush = Brush.verticalGradient(
-                                listOf(colors.primary.copy(alpha = 0.28f), colors.primary.copy(alpha = 0f))
-                            )
-                        )
-                        drawPath(
-                            path = mainPath,
-                            color = colors.primary,
-                            style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                        )
-
-                        val sel = mainCoords.getOrNull(selectedIdx)
-                        if (sel != null) {
-                            drawLine(
-                                color = colors.primary.copy(alpha = 0.45f),
-                                start = Offset(sel.x, sel.y),
-                                end = Offset(sel.x, h),
-                                strokeWidth = 2f,
-                                pathEffect = dash
-                            )
-                            drawCircle(color = colors.primary.copy(alpha = 0.3f), radius = 14f, center = sel)
-                            drawCircle(color = colors.surface, radius = 8f, center = sel)
-                            drawCircle(color = colors.primary, radius = 5.5f, center = sel)
-                        }
-                    }
-                }
+                )
             }
 
             if (points.size >= 4) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                val xLabels = remember(points) {
                     listOf(
                         points.first().dayLabel,
                         points[points.size / 3].dayLabel,
                         points[(points.size * 2) / 3].dayLabel,
                         points.last().dayLabel
-                    ).forEachIndexed { idx, label ->
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    xLabels.forEachIndexed { idx, label ->
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
@@ -1042,7 +1103,9 @@ private fun IncomeVsExpenseComparisonCard(
     settings: AppSettings
 ) {
     val colors = LakTheme.colors
-    val maxBarCents = (bars.maxOfOrNull { maxOf(it.incomeCents, it.expenseCents) } ?: 0L).coerceAtLeast(1L)
+    val maxBarCents = remember(bars) {
+        (bars.maxOfOrNull { maxOf(it.incomeCents, it.expenseCents) } ?: 0L).coerceAtLeast(1L)
+    }
 
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -1083,51 +1146,67 @@ private fun IncomeVsExpenseComparisonCard(
                 }
             }
 
-            Canvas(
+            Spacer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(130.dp)
-            ) {
-                if (bars.isEmpty()) return@Canvas
-                val groupWidth = size.width / bars.size
-                val barW = (groupWidth * 0.28f).coerceIn(10f, 26f)
-                val gap = 6f
-                val usableH = size.height - 8f
-
-                bars.forEachIndexed { index, item ->
-                    val centerX = (index + 0.5f) * groupWidth
-                    val incH = ((item.incomeCents.toFloat() / maxBarCents.toFloat()) * usableH).coerceAtLeast(if (item.incomeCents > 0L) 6f else 2f)
-                    val expH = ((item.expenseCents.toFloat() / maxBarCents.toFloat()) * usableH).coerceAtLeast(if (item.expenseCents > 0L) 6f else 2f)
-
-                    drawRoundRect(
-                        color = colors.income,
-                        topLeft = Offset(centerX - barW - gap / 2f, size.height - incH),
-                        size = Size(barW, incH),
-                        cornerRadius = CornerRadius(6f, 6f)
-                    )
-                    drawRoundRect(
-                        color = colors.expense,
-                        topLeft = Offset(centerX + gap / 2f, size.height - expH),
-                        size = Size(barW, expH),
-                        cornerRadius = CornerRadius(6f, 6f)
-                    )
-                }
-            }
+                    .drawWithCache {
+                        val incColor = colors.income
+                        val expColor = colors.expense
+                        val corner = CornerRadius(6f, 6f)
+                        if (bars.isEmpty()) {
+                            onDrawBehind { }
+                        } else {
+                            val groupWidth = size.width / bars.size
+                            val barW = (groupWidth * 0.28f).coerceIn(10f, 26f)
+                            val gap = 6f
+                            val usableH = size.height - 8f
+                            val maxFloat = maxBarCents.toFloat()
+                            val incRects = Array(bars.size) { index ->
+                                val item = bars[index]
+                                val centerX = (index + 0.5f) * groupWidth
+                                val incH = ((item.incomeCents.toFloat() / maxFloat) * usableH)
+                                    .coerceAtLeast(if (item.incomeCents > 0L) 6f else 2f)
+                                Offset(centerX - barW - gap / 2f, size.height - incH) to Size(barW, incH)
+                            }
+                            val expRects = Array(bars.size) { index ->
+                                val item = bars[index]
+                                val centerX = (index + 0.5f) * groupWidth
+                                val expH = ((item.expenseCents.toFloat() / maxFloat) * usableH)
+                                    .coerceAtLeast(if (item.expenseCents > 0L) 6f else 2f)
+                                Offset(centerX + gap / 2f, size.height - expH) to Size(barW, expH)
+                            }
+                            onDrawBehind {
+                                for (i in incRects.indices) {
+                                    val (incPos, incSize) = incRects[i]
+                                    drawRoundRect(color = incColor, topLeft = incPos, size = incSize, cornerRadius = corner)
+                                    val (expPos, expSize) = expRects[i]
+                                    drawRoundRect(color = expColor, topLeft = expPos, size = expSize, cornerRadius = corner)
+                                }
+                            }
+                        }
+                    }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 bars.forEach { bar ->
+                    val netCompact = remember(bar.incomeCents, bar.expenseCents) {
+                        if (bar.incomeCents > 0L || bar.expenseCents > 0L) {
+                            MoneyMath.formatCompact(bar.incomeCents - bar.expenseCents)
+                        } else null
+                    }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = bar.label,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = colors.onSurfaceVariant
                         )
-                        if (bar.incomeCents > 0L || bar.expenseCents > 0L) {
+                        if (netCompact != null) {
                             Text(
-                                text = MoneyMath.formatCompact(bar.incomeCents - bar.expenseCents),
+                                text = netCompact,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (bar.incomeCents >= bar.expenseCents) colors.income else colors.expense
                             )

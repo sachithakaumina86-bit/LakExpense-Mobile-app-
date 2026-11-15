@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,9 +44,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -92,14 +93,23 @@ fun HomeDashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = LakTheme.colors
-    val firstName = state.profile?.fullName
-        ?.trim()
-        ?.split(" ")
-        ?.firstOrNull()
-        ?.takeIf { it.isNotBlank() }
-        ?: "Friend"
-    val locationText = state.profile?.location?.takeIf { it.isNotBlank() } ?: "Colombo, Sri Lanka"
-    val prevMonthShort = DateUtils.formatShortMonth(DateUtils.shiftYearMonthKey(selectedYearMonth, -1))
+    val firstName = remember(state.profile?.fullName) {
+        state.profile?.fullName
+            ?.trim()
+            ?.split(" ")
+            ?.firstOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: "Friend"
+    }
+    val locationText = remember(state.profile?.location) {
+        (state.profile?.location?.takeIf { it.isNotBlank() } ?: "Colombo, Sri Lanka").substringBefore(",")
+    }
+    val monthHeaderText = remember(selectedYearMonth) {
+        DateUtils.formatMonthYear(selectedYearMonth)
+    }
+    val prevMonthShort = remember(selectedYearMonth) {
+        DateUtils.formatShortMonth(DateUtils.shiftYearMonthKey(selectedYearMonth, -1))
+    }
 
     Box(
         modifier = modifier
@@ -116,7 +126,7 @@ fun HomeDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Greeting & System Sovereignty Status
-            item {
+            item(key = "greeting", contentType = "greeting") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -181,7 +191,7 @@ fun HomeDashboardScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = DateUtils.formatMonthYear(selectedYearMonth),
+                                    text = monthHeaderText,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                                     color = colors.onSurface
                                 )
@@ -195,7 +205,7 @@ fun HomeDashboardScreen(
                         }
 
                         Text(
-                            text = "${locationText.substringBefore(",")} • Safe Zone",
+                            text = "$locationText • Safe Zone",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant
                         )
@@ -204,7 +214,7 @@ fun HomeDashboardScreen(
             }
 
             if (hasDemoData) {
-                item {
+                item(key = "demo_banner", contentType = "demo_banner") {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = colors.secondaryContainer.copy(alpha = if (colors.isDark) 0.18f else 0.7f),
@@ -249,7 +259,7 @@ fun HomeDashboardScreen(
             }
 
             // Hero Total Net Balance Card (Faithful to Stitch card)
-            item {
+            item(key = "hero_balance", contentType = "hero_balance") {
                 HeroBalanceCard(
                     state = state,
                     settings = settings,
@@ -258,7 +268,7 @@ fun HomeDashboardScreen(
             }
 
             // Quick Actions Row
-            item {
+            item(key = "quick_actions", contentType = "quick_actions") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -299,7 +309,7 @@ fun HomeDashboardScreen(
             }
 
             // Spending Velocity Card
-            item {
+            item(key = "velocity_chart", contentType = "velocity_chart") {
                 SpendingVelocityCard(
                     points = state.dailyVelocityPoints,
                     deltaPercent = state.expenseDeltaPercentVsPrevMonth,
@@ -309,7 +319,7 @@ fun HomeDashboardScreen(
             }
 
             // Categories Breakdown (2x2 Grid)
-            item {
+            item(key = "categories_breakdown", contentType = "categories_breakdown") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -321,8 +331,11 @@ fun HomeDashboardScreen(
                             style = MaterialTheme.typography.headlineSmall,
                             color = colors.onSurface
                         )
+                        val periodCompactText = remember(state.periodExpenseCents) {
+                            "${MoneyMath.formatCompact(state.periodExpenseCents)} Total"
+                        }
                         Text(
-                            text = "${MoneyMath.formatCompact(state.periodExpenseCents)} Total",
+                            text = periodCompactText,
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.onSurfaceVariant
                         )
@@ -340,7 +353,7 @@ fun HomeDashboardScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "No expenses logged for ${DateUtils.formatMonthYear(selectedYearMonth)}",
+                                    text = "No expenses logged for $monthHeaderText",
                                     style = MaterialTheme.typography.labelLarge,
                                     color = colors.onSurface
                                 )
@@ -353,8 +366,9 @@ fun HomeDashboardScreen(
                             }
                         }
                     } else {
-                        val topFour = state.categoryBreakdown.take(4)
-                        val rows = topFour.chunked(2)
+                        val rows = remember(state.categoryBreakdown) {
+                            state.categoryBreakdown.take(4).chunked(2)
+                        }
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             rows.forEach { pair ->
                                 Row(
@@ -379,7 +393,7 @@ fun HomeDashboardScreen(
             }
 
             // Recent Transactions Header
-            item {
+            item(key = "recent_header", contentType = "section_header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -414,7 +428,7 @@ fun HomeDashboardScreen(
             }
 
             if (state.recentTransactions.isEmpty()) {
-                item {
+                item(key = "empty_recent", contentType = "empty_card") {
                     Surface(
                         onClick = onAddFirstTransaction,
                         shape = RoundedCornerShape(16.dp),
@@ -443,7 +457,11 @@ fun HomeDashboardScreen(
                     }
                 }
             } else {
-                items(state.recentTransactions, key = { it.entity.id }) { item ->
+                items(
+                    items = state.recentTransactions,
+                    key = { it.entity.id },
+                    contentType = { "tx_row" }
+                ) { item ->
                     DashboardTransactionRow(
                         item = item,
                         settings = settings,
@@ -463,18 +481,44 @@ private fun HeroBalanceCard(
 ) {
     val colors = LakTheme.colors
     val hidden = settings.balanceHidden
-    val balanceFormatted = MoneyMath.formatNumberOnly(state.totalNetBalanceCents, includeDecimals = true)
-    val incomeFormatted = MoneyMath.formatAmount(
-        state.periodIncomeCents,
-        settings.currencyOption,
-        isPositiveOverride = true
-    )
-    val expenseFormatted = MoneyMath.formatAmount(
-        state.periodExpenseCents,
-        settings.currencyOption,
-        isPositiveOverride = false
-    )
-    val availableFormatted = MoneyMath.formatAmount(state.availableToSpendCents, settings.currencyOption)
+    val balanceFormatted = remember(state.totalNetBalanceCents) {
+        MoneyMath.formatNumberOnly(state.totalNetBalanceCents, includeDecimals = true)
+    }
+    val incomeFormatted = remember(state.periodIncomeCents, settings.currencyOption) {
+        MoneyMath.formatAmount(
+            state.periodIncomeCents,
+            settings.currencyOption,
+            isPositiveOverride = true
+        )
+    }
+    val expenseFormatted = remember(state.periodExpenseCents, settings.currencyOption) {
+        MoneyMath.formatAmount(
+            state.periodExpenseCents,
+            settings.currencyOption,
+            isPositiveOverride = false
+        )
+    }
+    val availableFormatted = remember(state.availableToSpendCents, settings.currencyOption) {
+        MoneyMath.formatAmount(state.availableToSpendCents, settings.currencyOption)
+    }
+    val cardGradient = remember(colors.isDark, colors.surfaceContainerHigh, colors.surfaceContainerLow, colors.surfaceContainerLowest, colors.surfaceContainer, colors.secondaryContainer) {
+        if (colors.isDark) {
+            Brush.linearGradient(
+                listOf(
+                    colors.surfaceContainerHigh,
+                    colors.surfaceContainerLow,
+                    colors.surfaceContainerLowest
+                )
+            )
+        } else {
+            Brush.linearGradient(
+                listOf(
+                    colors.surfaceContainer,
+                    colors.secondaryContainer.copy(alpha = 0.55f)
+                )
+            )
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -485,24 +529,7 @@ private fun HeroBalanceCard(
     ) {
         Box(
             modifier = Modifier
-                .background(
-                    if (colors.isDark) {
-                        Brush.linearGradient(
-                            listOf(
-                                colors.surfaceContainerHigh,
-                                colors.surfaceContainerLow,
-                                colors.surfaceContainerLowest
-                            )
-                        )
-                    } else {
-                        Brush.linearGradient(
-                            listOf(
-                                colors.surfaceContainer,
-                                colors.secondaryContainer.copy(alpha = 0.55f)
-                            )
-                        )
-                    }
-                )
+                .background(cardGradient)
                 .padding(18.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -809,109 +836,145 @@ private fun SpendingVelocityCard(
                 }
             }
 
-            val maxVal = (points.maxOfOrNull { it.amountCents } ?: 0L).coerceAtLeast(1L)
-            val hasSpend = points.any { it.amountCents > 0L }
+            val chartSummary = remember(points) {
+                var max = 1L
+                var anySpend = false
+                var peakIdx = 0
+                var peakAmt = -1L
+                points.forEachIndexed { idx, pt ->
+                    if (pt.amountCents > 0L) anySpend = true
+                    if (pt.amountCents > max) max = pt.amountCents
+                    if (pt.amountCents > peakAmt) {
+                        peakAmt = pt.amountCents
+                        peakIdx = idx
+                    }
+                }
+                Triple(max, anySpend, peakIdx)
+            }
+            val maxVal = chartSummary.first
+            val hasSpend = chartSummary.second
+            val peakIndex = chartSummary.third
+            val peakPoint = points.getOrNull(peakIndex)
+            val peakBadgeText = remember(peakPoint, currency) {
+                if (peakPoint != null && peakPoint.amountCents > 0L) {
+                    "Peak ${peakPoint.dayLabel}: ${MoneyMath.formatAmount(peakPoint.amountCents, currency, includeDecimals = false)}"
+                } else null
+            }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(126.dp)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val topPad = 14f
-                    val bottomPad = 12f
-                    val usableH = (h - topPad - bottomPad).coerceAtLeast(10f)
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithCache {
+                            val w = size.width
+                            val h = size.height
+                            val topPad = 14f
+                            val bottomPad = 12f
+                            val usableH = (h - topPad - bottomPad).coerceAtLeast(10f)
+                            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                            val gridY1 = topPad + usableH * 0.25f
+                            val gridY2 = topPad + usableH * 0.65f
 
-                    // Dashed grid lines
-                    val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
-                    drawLine(
-                        color = colors.chartGrid,
-                        start = Offset(0f, topPad + usableH * 0.25f),
-                        end = Offset(w, topPad + usableH * 0.25f),
-                        strokeWidth = 1.5f,
-                        pathEffect = dashEffect
-                    )
-                    drawLine(
-                        color = colors.chartGrid,
-                        start = Offset(0f, topPad + usableH * 0.65f),
-                        end = Offset(w, topPad + usableH * 0.65f),
-                        strokeWidth = 1.5f,
-                        pathEffect = dashEffect
-                    )
+                            if (points.size >= 2 && hasSpend) {
+                                val stepX = w / (points.size - 1).coerceAtLeast(1)
+                                var peakOffset = Offset.Zero
+                                var prevX = 0f
+                                var prevY = 0f
+                                val linePath = Path()
+                                var lastX = 0f
+                                val maxFloat = maxVal.toFloat()
 
-                    if (points.size >= 2 && hasSpend) {
-                        val stepX = w / (points.size - 1).coerceAtLeast(1)
-                        val coords = points.mapIndexed { idx, pt ->
-                            val ratio = pt.amountCents.toFloat() / maxVal.toFloat()
-                            val x = idx * stepX
-                            val y = topPad + usableH * (1f - ratio)
-                            Offset(x, y)
-                        }
+                                points.forEachIndexed { idx, pt ->
+                                    val ratio = pt.amountCents.toFloat() / maxFloat
+                                    val x = idx * stepX
+                                    val y = topPad + usableH * (1f - ratio)
+                                    if (idx == 0) {
+                                        linePath.moveTo(x, y)
+                                    } else {
+                                        val ctrlX = (prevX + x) / 2f
+                                        linePath.cubicTo(ctrlX, prevY, ctrlX, y, x, y)
+                                    }
+                                    if (idx == peakIndex) {
+                                        peakOffset = Offset(x, y)
+                                    }
+                                    prevX = x
+                                    prevY = y
+                                    lastX = x
+                                }
 
-                        val linePath = Path().apply {
-                            moveTo(coords.first().x, coords.first().y)
-                            for (i in 0 until coords.lastIndex) {
-                                val curr = coords[i]
-                                val next = coords[i + 1]
-                                val ctrlX = (curr.x + next.x) / 2f
-                                cubicTo(ctrlX, curr.y, ctrlX, next.y, next.x, next.y)
+                                val fillPath = Path().apply {
+                                    addPath(linePath)
+                                    lineTo(lastX, h)
+                                    lineTo(0f, h)
+                                    close()
+                                }
+                                val fillBrush = Brush.verticalGradient(
+                                    listOf(
+                                        colors.primary.copy(alpha = 0.32f),
+                                        colors.primary.copy(alpha = 0.0f)
+                                    )
+                                )
+                                val strokeStyle = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                val gridColor = colors.chartGrid
+                                val primaryColor = colors.primary
+                                val peakHalo = colors.primary.copy(alpha = 0.28f)
+                                val surfaceColor = colors.surface
+
+                                onDrawBehind {
+                                    drawLine(
+                                        color = gridColor,
+                                        start = Offset(0f, gridY1),
+                                        end = Offset(w, gridY1),
+                                        strokeWidth = 1.5f,
+                                        pathEffect = dashEffect
+                                    )
+                                    drawLine(
+                                        color = gridColor,
+                                        start = Offset(0f, gridY2),
+                                        end = Offset(w, gridY2),
+                                        strokeWidth = 1.5f,
+                                        pathEffect = dashEffect
+                                    )
+                                    drawPath(path = fillPath, brush = fillBrush)
+                                    drawPath(path = linePath, color = primaryColor, style = strokeStyle)
+                                    drawCircle(color = peakHalo, radius = 14f, center = peakOffset)
+                                    drawCircle(color = surfaceColor, radius = 8f, center = peakOffset)
+                                    drawCircle(color = primaryColor, radius = 5.5f, center = peakOffset)
+                                }
+                            } else {
+                                val baseY = topPad + usableH * 0.88f
+                                val gridColor = colors.chartGrid
+                                val baselineColor = colors.primary.copy(alpha = 0.45f)
+                                onDrawBehind {
+                                    drawLine(
+                                        color = gridColor,
+                                        start = Offset(0f, gridY1),
+                                        end = Offset(w, gridY1),
+                                        strokeWidth = 1.5f,
+                                        pathEffect = dashEffect
+                                    )
+                                    drawLine(
+                                        color = gridColor,
+                                        start = Offset(0f, gridY2),
+                                        end = Offset(w, gridY2),
+                                        strokeWidth = 1.5f,
+                                        pathEffect = dashEffect
+                                    )
+                                    drawLine(
+                                        color = baselineColor,
+                                        start = Offset(0f, baseY),
+                                        end = Offset(w, baseY),
+                                        strokeWidth = 3f,
+                                        cap = StrokeCap.Round
+                                    )
+                                }
                             }
                         }
-
-                        val fillPath = Path().apply {
-                            addPath(linePath)
-                            lineTo(coords.last().x, h)
-                            lineTo(coords.first().x, h)
-                            close()
-                        }
-
-                        drawPath(
-                            path = fillPath,
-                            brush = Brush.verticalGradient(
-                                listOf(
-                                    colors.primary.copy(alpha = 0.32f),
-                                    colors.primary.copy(alpha = 0.0f)
-                                )
-                            )
-                        )
-                        drawPath(
-                            path = linePath,
-                            color = colors.primary,
-                            style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                        )
-
-                        // Highlight peak point
-                        val peakIndex = points.indices.maxByOrNull { points[it].amountCents } ?: 0
-                        val peakOffset = coords[peakIndex]
-                        drawCircle(
-                            color = colors.primary.copy(alpha = 0.28f),
-                            radius = 14f,
-                            center = peakOffset
-                        )
-                        drawCircle(
-                            color = colors.surface,
-                            radius = 8f,
-                            center = peakOffset
-                        )
-                        drawCircle(
-                            color = colors.primary,
-                            radius = 5.5f,
-                            center = peakOffset
-                        )
-                    } else {
-                        // Flat baseline when cycle has no spend yet
-                        val baseY = topPad + usableH * 0.88f
-                        drawLine(
-                            color = colors.primary.copy(alpha = 0.45f),
-                            start = Offset(0f, baseY),
-                            end = Offset(w, baseY),
-                            strokeWidth = 3f,
-                            cap = StrokeCap.Round
-                        )
-                    }
-                }
+                )
 
                 if (!hasSpend) {
                     Text(
@@ -920,33 +983,32 @@ private fun SpendingVelocityCard(
                         color = colors.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center)
                     )
-                } else {
-                    val peak = points.maxByOrNull { it.amountCents }
-                    if (peak != null && peak.amountCents > 0L) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = colors.surfaceContainerHigh,
-                            border = BorderStroke(1.dp, colors.cardBorder),
-                            modifier = Modifier.align(Alignment.TopEnd)
-                        ) {
-                            Text(
-                                text = "Peak ${peak.dayLabel}: ${MoneyMath.formatAmount(peak.amountCents, currency, includeDecimals = false)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                } else if (peakBadgeText != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, colors.cardBorder),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Text(
+                            text = peakBadgeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
 
             if (points.size >= 4) {
-                val labels = listOf(
-                    points.first().dayLabel,
-                    points[points.size / 3].dayLabel,
-                    points[(points.size * 2) / 3].dayLabel,
-                    points.last().dayLabel
-                )
+                val labels = remember(points) {
+                    listOf(
+                        points.first().dayLabel,
+                        points[points.size / 3].dayLabel,
+                        points[(points.size * 2) / 3].dayLabel,
+                        points.last().dayLabel
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -971,7 +1033,15 @@ private fun CategoryBreakdownTile(
     modifier: Modifier = Modifier
 ) {
     val colors = LakTheme.colors
-    val accent = CategoryIconMapper.parseColor(summary.category.colorHex, colors.primary)
+    val accent = remember(summary.category.colorHex, colors.primary) {
+        CategoryIconMapper.parseColor(summary.category.colorHex, colors.primary)
+    }
+    val categoryIcon = remember(summary.category.iconKey) {
+        CategoryIconMapper.iconForKey(summary.category.iconKey)
+    }
+    val formattedTotal = remember(summary.totalCents, settings.currencyOption) {
+        MoneyMath.formatAmount(summary.totalCents, settings.currencyOption, includeDecimals = false)
+    }
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = colors.surfaceContainer,
@@ -995,7 +1065,7 @@ private fun CategoryBreakdownTile(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = CategoryIconMapper.iconForKey(summary.category.iconKey),
+                        imageVector = categoryIcon,
                         contentDescription = summary.category.name,
                         tint = accent,
                         modifier = Modifier.size(18.dp)
@@ -1017,7 +1087,7 @@ private fun CategoryBreakdownTile(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = MoneyMath.formatAmount(summary.totalCents, settings.currencyOption, includeDecimals = false),
+                    text = formattedTotal,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -1051,26 +1121,40 @@ fun DashboardTransactionRow(
 ) {
     val colors = LakTheme.colors
     val tx = item.entity
-    val iconColor = when (tx.type) {
-        TransactionType.INCOME -> colors.income
-        TransactionType.TRANSFER -> colors.transfer
-        TransactionType.EXPENSE -> CategoryIconMapper.parseColor(item.category?.colorHex, colors.primary)
+    val iconColor = remember(tx.type, item.category?.colorHex, colors.income, colors.transfer, colors.primary) {
+        when (tx.type) {
+            TransactionType.INCOME -> colors.income
+            TransactionType.TRANSFER -> colors.transfer
+            TransactionType.EXPENSE -> CategoryIconMapper.parseColor(item.category?.colorHex, colors.primary)
+        }
+    }
+    val categoryIcon = remember(item.category?.iconKey) {
+        CategoryIconMapper.iconForKey(item.category?.iconKey)
     }
     val amountColor = when (tx.type) {
         TransactionType.INCOME -> colors.income
         TransactionType.TRANSFER -> colors.transfer
         TransactionType.EXPENSE -> colors.onSurface
     }
-    val amountText = when (tx.type) {
-        TransactionType.INCOME -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = true)
-        TransactionType.EXPENSE -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = false)
-        TransactionType.TRANSFER -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption)
+    val amountText = remember(tx.type, tx.amountCents, settings.currencyOption) {
+        when (tx.type) {
+            TransactionType.INCOME -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = true)
+            TransactionType.EXPENSE -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption, isPositiveOverride = false)
+            TransactionType.TRANSFER -> MoneyMath.formatAmount(tx.amountCents, settings.currencyOption)
+        }
     }
-    val title = tx.merchant.ifBlank { item.category?.name ?: tx.type.label }
-    val methodBadge = if (tx.type == TransactionType.TRANSFER && item.toPaymentMethod != null) {
-        "${item.paymentMethod?.name ?: "From"} → ${item.toPaymentMethod.name}"
-    } else {
-        item.paymentMethod?.name ?: "Cash"
+    val title = remember(tx.merchant, item.category?.name, tx.type) {
+        tx.merchant.ifBlank { item.category?.name ?: tx.type.label }
+    }
+    val methodBadge = remember(tx.type, item.paymentMethod?.name, item.toPaymentMethod?.name) {
+        if (tx.type == TransactionType.TRANSFER && item.toPaymentMethod != null) {
+            "${item.paymentMethod?.name ?: "From"} → ${item.toPaymentMethod.name}"
+        } else {
+            item.paymentMethod?.name ?: "Cash"
+        }
+    }
+    val formattedTime = remember(tx.timestamp) {
+        DateUtils.formatShortTimestamp(tx.timestamp)
     }
 
     Surface(
@@ -1102,7 +1186,7 @@ fun DashboardTransactionRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = CategoryIconMapper.iconForKey(item.category?.iconKey),
+                        imageVector = categoryIcon,
                         contentDescription = title,
                         tint = iconColor,
                         modifier = Modifier.size(22.dp)
@@ -1123,7 +1207,7 @@ fun DashboardTransactionRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = DateUtils.formatShortTimestamp(tx.timestamp),
+                            text = formattedTime,
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                             maxLines = 1

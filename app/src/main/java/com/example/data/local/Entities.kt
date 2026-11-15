@@ -1,10 +1,12 @@
 package com.example.data.local
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.data.model.TransactionType
 
+@Immutable
 @Entity(tableName = "user_profile")
 data class UserProfileEntity(
     @PrimaryKey val id: Int = 1,
@@ -17,6 +19,7 @@ data class UserProfileEntity(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+@Immutable
 @Entity(tableName = "categories")
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -29,6 +32,7 @@ data class CategoryEntity(
     val sortOrder: Int = 0
 )
 
+@Immutable
 @Entity(tableName = "payment_methods")
 data class PaymentMethodEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -38,6 +42,7 @@ data class PaymentMethodEntity(
     val sortOrder: Int = 0
 )
 
+@Immutable
 @Entity(
     tableName = "transactions",
     indices = [
@@ -61,6 +66,7 @@ data class TransactionEntity(
     val isDemo: Boolean = false
 )
 
+@Immutable
 @Entity(
     tableName = "budgets",
     indices = [Index(value = ["yearMonth", "categoryId"], unique = true)]

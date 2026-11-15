@@ -1,11 +1,13 @@
 package com.example.data.model
 
+import androidx.compose.runtime.Immutable
 import com.example.data.local.BudgetEntity
 import com.example.data.local.CategoryEntity
 import com.example.data.local.PaymentMethodEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.local.UserProfileEntity
 
+@Immutable
 data class AppSettings(
     val onboardingCompleted: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.DARK,
@@ -24,6 +26,7 @@ data class AppSettings(
     val lastBackupTimestamp: Long = 0L
 )
 
+@Immutable
 data class TransactionItem(
     val entity: TransactionEntity,
     val category: CategoryEntity?,
@@ -31,6 +34,25 @@ data class TransactionItem(
     val toPaymentMethod: PaymentMethodEntity?
 )
 
+@Immutable
+data class TransactionDayGroup(
+    val dayStartMillis: Long,
+    val dayPrefix: String,
+    val dayDateStr: String,
+    val dayNetCents: Long,
+    val items: List<TransactionItem>
+)
+
+@Immutable
+data class TransactionsListUiState(
+    val totalSpentCents: Long = 0L,
+    val totalEarnedCents: Long = 0L,
+    val netCashCents: Long = 0L,
+    val totalCount: Int = 0,
+    val dayGroups: List<TransactionDayGroup> = emptyList()
+)
+
+@Immutable
 data class CategorySpendSummary(
     val category: CategoryEntity,
     val totalCents: Long,
@@ -39,6 +61,7 @@ data class CategorySpendSummary(
     val sampleMerchants: String
 )
 
+@Immutable
 data class BudgetCardUi(
     val budget: BudgetEntity,
     val category: CategoryEntity,
@@ -51,6 +74,7 @@ data class BudgetCardUi(
     val isOverspent: Boolean
 )
 
+@Immutable
 data class MonthlyBudgetHistoryItem(
     val yearMonth: String,
     val monthLabel: String,
@@ -59,6 +83,7 @@ data class MonthlyBudgetHistoryItem(
     val percentUsed: Int
 )
 
+@Immutable
 data class DailyChartPoint(
     val dayLabel: String,
     val timestampMillis: Long,
@@ -68,12 +93,14 @@ data class DailyChartPoint(
     val topMerchant: String
 )
 
+@Immutable
 data class MonthlyComparisonBar(
     val label: String,
     val incomeCents: Long,
     val expenseCents: Long
 )
 
+@Immutable
 data class VaultInsight(
     val id: String,
     val title: String,
@@ -82,6 +109,7 @@ data class VaultInsight(
     val isPositive: Boolean
 )
 
+@Immutable
 data class BudgetAlertNotification(
     val id: String,
     val title: String,
@@ -91,6 +119,7 @@ data class BudgetAlertNotification(
     val isOverspent: Boolean
 )
 
+@Immutable
 data class VaultStats(
     val transactionCount: Int = 0,
     val budgetCount: Int = 0,
@@ -99,6 +128,7 @@ data class VaultStats(
     val hasDemoData: Boolean = false
 )
 
+@Immutable
 data class TransactionFilterState(
     val query: String = "",
     val typeFilter: TransactionType? = null,
@@ -109,6 +139,7 @@ data class TransactionFilterState(
     val customEndMillis: Long? = null
 )
 
+@Immutable
 data class DashboardUiState(
     val profile: UserProfileEntity? = null,
     val totalNetBalanceCents: Long = 0L,
@@ -125,6 +156,7 @@ data class DashboardUiState(
     val cycleEndMillis: Long = 0L
 )
 
+@Immutable
 data class BudgetsUiState(
     val yearMonth: String = "",
     val cycleLabel: String = "",
@@ -145,6 +177,7 @@ data class BudgetsUiState(
     val availableCategories: List<CategoryEntity> = emptyList()
 )
 
+@Immutable
 data class ReportsUiState(
     val period: ReportPeriod = ReportPeriod.MONTHLY,
     val rangeLabel: String = "",

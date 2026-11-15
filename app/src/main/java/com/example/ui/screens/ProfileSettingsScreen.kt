@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -93,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.data.local.CategoryEntity
 import com.example.data.local.PaymentMethodEntity
 import com.example.data.local.UserProfileEntity
@@ -240,7 +242,7 @@ fun ProfileSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 // Profile Hero Card
-                item {
+                item(key = "profile_hero", contentType = "profile_hero") {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = colors.surfaceContainer,
@@ -266,8 +268,15 @@ fun ProfileSettingsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (!profile?.avatarUri.isNullOrBlank()) {
+                                    val avatarRequest = remember(profile?.avatarUri, context) {
+                                        ImageRequest.Builder(context)
+                                            .data(File(profile!!.avatarUri!!))
+                                            .size(256)
+                                            .crossfade(true)
+                                            .build()
+                                    }
                                     AsyncImage(
-                                        model = File(profile!!.avatarUri!!),
+                                        model = avatarRequest,
                                         contentDescription = "Profile photo",
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
@@ -387,7 +396,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // REGIONAL & ACCOUNTING
-                item {
+                item(key = "regional_accounting", contentType = "settings_section") {
                     SettingsSectionTitle("REGIONAL & ACCOUNTING")
                     SettingsGroupCard {
                         SettingsRowItem(
@@ -426,7 +435,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // VAULT SECURITY & ACCESS
-                item {
+                item(key = "vault_security", contentType = "settings_section") {
                     SettingsSectionTitle("VAULT SECURITY & ACCESS", badge = "Hardware Keystore")
                     SettingsGroupCard {
                         SettingsSwitchItem(
@@ -482,7 +491,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // NOTIFICATIONS
-                item {
+                item(key = "notifications", contentType = "settings_section") {
                     SettingsSectionTitle("NOTIFICATIONS")
                     SettingsGroupCard {
                         SettingsSwitchItem(
@@ -518,7 +527,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // OFFLINE VAULT & BACKUPS
-                item {
+                item(key = "offline_vault", contentType = "settings_section") {
                     SettingsSectionTitle("OFFLINE VAULT & BACKUPS")
                     SettingsGroupCard {
                         Column(
@@ -610,7 +619,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // APPEARANCE & CATEGORIES
-                item {
+                item(key = "appearance_categories", contentType = "settings_section") {
                     SettingsSectionTitle("APPEARANCE & CATEGORIES")
                     SettingsGroupCard {
                         Column(
@@ -695,7 +704,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // DANGER ZONE
-                item {
+                item(key = "danger_zone", contentType = "danger_zone") {
                     Text(
                         text = "DANGER ZONE",
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
@@ -760,7 +769,7 @@ fun ProfileSettingsScreen(
                 }
 
                 // Footer
-                item {
+                item(key = "footer", contentType = "footer") {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1009,7 +1018,7 @@ fun ProfileSettingsScreen(
                 contentPadding = PaddingValues(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item {
+                item(key = "categories_header", contentType = "sheet_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1022,8 +1031,17 @@ fun ProfileSettingsScreen(
                         }
                     }
                 }
-                items(categories.size) { index ->
-                    val cat = categories[index]
+                items(
+                    items = categories,
+                    key = { "cat_${it.id}" },
+                    contentType = { "category_row" }
+                ) { cat ->
+                    val catColor = remember(cat.colorHex, colors.primary) {
+                        CategoryIconMapper.parseColor(cat.colorHex, colors.primary)
+                    }
+                    val catIcon = remember(cat.iconKey) {
+                        CategoryIconMapper.iconForKey(cat.iconKey)
+                    }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = colors.surfaceContainer,
@@ -1038,9 +1056,9 @@ fun ProfileSettingsScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(
-                                    imageVector = CategoryIconMapper.iconForKey(cat.iconKey),
+                                    imageVector = catIcon,
                                     contentDescription = cat.name,
-                                    tint = CategoryIconMapper.parseColor(cat.colorHex, colors.primary),
+                                    tint = catColor,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Column {
@@ -1056,7 +1074,7 @@ fun ProfileSettingsScreen(
                         }
                     }
                 }
-                item {
+                item(key = "payment_methods_header", contentType = "sheet_header") {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("Payment Methods (${paymentMethods.size})", style = MaterialTheme.typography.headlineSmall, color = colors.onSurface)
                     Row(
@@ -1084,8 +1102,11 @@ fun ProfileSettingsScreen(
                         }
                     }
                 }
-                items(paymentMethods.size) { index ->
-                    val method = paymentMethods[index]
+                items(
+                    items = paymentMethods,
+                    key = { "pm_${it.id}" },
+                    contentType = { "payment_method_row" }
+                ) { method ->
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = colors.surfaceContainer,

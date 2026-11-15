@@ -136,15 +136,7 @@ fun LakExpenseApp(
     val isSplashFinished by viewModel.isSplashFinished.collectAsStateWithLifecycle()
     val isVaultUnlocked by viewModel.isVaultUnlocked.collectAsStateWithLifecycle()
     val selectedYearMonth by viewModel.selectedYearMonth.collectAsStateWithLifecycle()
-    val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
-    val filterState by viewModel.filterState.collectAsStateWithLifecycle()
-    val filteredTransactions by viewModel.filteredTransactions.collectAsStateWithLifecycle()
-    val allItems by viewModel.allTransactionItems.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val paymentMethods by viewModel.paymentMethods.collectAsStateWithLifecycle()
-    val budgetsState by viewModel.budgetsState.collectAsStateWithLifecycle()
-    val reportsState by viewModel.reportsState.collectAsStateWithLifecycle()
-    val vaultStats by viewModel.vaultStats.collectAsStateWithLifecycle()
+    val alertCount by viewModel.budgetAlertCount.collectAsStateWithLifecycle()
 
     var showMonthPicker by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
@@ -154,7 +146,7 @@ fun LakExpenseApp(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
         if (uri != null) {
-            viewModel.exportPdfToUri(uri, reportsState)
+            viewModel.exportCurrentPdfToUri(uri)
         }
     }
 
@@ -162,7 +154,7 @@ fun LakExpenseApp(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         if (uri != null) {
-            viewModel.exportCsvToUri(uri, reportsState.filteredTransactions)
+            viewModel.exportCurrentCsvToUri(uri)
         }
     }
 
@@ -186,22 +178,26 @@ fun LakExpenseApp(
         }
     }
 
-    fun navigateTopTab(route: String) {
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+    val navigateTopTab = remember(navController) {
+        { route: String ->
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
             }
-            launchSingleTop = true
-            restoreState = true
         }
     }
 
-    val topLevelRoutes = setOf(
-        AppRoutes.HOME,
-        AppRoutes.TRANSACTIONS,
-        AppRoutes.BUDGETS,
-        AppRoutes.REPORTS
-    )
+    val topLevelRoutes = remember {
+        setOf(
+            AppRoutes.HOME,
+            AppRoutes.TRANSACTIONS,
+            AppRoutes.BUDGETS,
+            AppRoutes.REPORTS
+        )
+    }
     val isTopLevel = currentRoute in topLevelRoutes
 
     val headerSubtitle = when (currentRoute) {
@@ -210,6 +206,11 @@ fun LakExpenseApp(
         AppRoutes.BUDGETS -> "Budgets"
         AppRoutes.REPORTS -> "Reports"
         else -> ""
+    }
+    val monthChipText = remember(currentRoute, selectedYearMonth) {
+        if (currentRoute == AppRoutes.BUDGETS || currentRoute == AppRoutes.REPORTS) {
+            DateUtils.formatMonthYear(selectedYearMonth, shortMonth = true)
+        } else null
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -222,11 +223,9 @@ fun LakExpenseApp(
                 if (isTopLevel) {
                     LakTopHeader(
                         subtitle = headerSubtitle,
-                        monthChipText = if (currentRoute == AppRoutes.BUDGETS || currentRoute == AppRoutes.REPORTS) {
-                            DateUtils.formatMonthYear(selectedYearMonth, shortMonth = true)
-                        } else null,
+                        monthChipText = monthChipText,
                         onMonthChipClick = { showMonthPicker = true },
-                        alertCount = dashboardState.alerts.size,
+                        alertCount = alertCount,
                         onNotificationsClick = { showNotificationsSheet = true },
                         onProfileClick = { navController.navigate(AppRoutes.SETTINGS) }
                     )
@@ -236,7 +235,7 @@ fun LakExpenseApp(
                 if (isTopLevel && !useNavigationRail) {
                     LakBottomBar(
                         currentRoute = currentRoute,
-                        onNavigate = { navigateTopTab(it) },
+                        onNavigate = navigateTopTab,
                         onAddClick = { navController.navigate(AppRoutes.addRoute()) }
                     )
                 }
@@ -250,7 +249,7 @@ fun LakExpenseApp(
                 if (isTopLevel && useNavigationRail) {
                     LakNavigationRail(
                         currentRoute = currentRoute,
-                        onNavigate = { navigateTopTab(it) },
+                        onNavigate = navigateTopTab,
                         onAddClick = { navController.navigate(AppRoutes.addRoute()) }
                     )
                 }
@@ -295,9 +294,11 @@ fun LakExpenseApp(
                         }
 
                         composable(AppRoutes.LOCK) {
+                            val biometricAvailable = remember(viewModel) {
+                                viewModel.repository.security.isBiometricAvailable()
+                            }
                             LockScreen(
-                                biometricEnabled = settings.biometricEnabled &&
-                                    viewModel.repository.security.isBiometricAvailable(),
+                                biometricEnabled = settings.biometricEnabled && biometricAvailable,
                                 hapticsEnabled = settings.hapticsEnabled,
                                 onAttemptPinUnlock = { pin ->
                                     val ok = viewModel.attemptPinUnlock(pin)
@@ -312,9 +313,7 @@ fun LakExpenseApp(
                                     }
                                     ok
                                 },
-                                onRequestBiometricPrompt = {
-                                    onRequestBiometricPrompt()
-                                }
+                                onRequestBiometricPrompt = onRequestBiometricPrompt
                             )
                             LaunchedEffect(isVaultUnlocked) {
                                 if (isVaultUnlocked) {
@@ -330,6 +329,8 @@ fun LakExpenseApp(
                         }
 
                         composable(AppRoutes.HOME) {
+                            val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
+                            val vaultStats by viewModel.vaultStats.collectAsStateWithLifecycle()
                             HomeDashboardScreen(
                                 state = dashboardState,
                                 settings = settings,
@@ -351,21 +352,25 @@ fun LakExpenseApp(
                                 onTransactionClick = { item ->
                                     navController.navigate(AppRoutes.addRoute(txId = item.entity.id))
                                 },
-                                onClearDemoData = { viewModel.clearDemoData() },
+                                onClearDemoData = viewModel::clearDemoData,
                                 onAddFirstTransaction = { navController.navigate(AppRoutes.addRoute()) }
                             )
                         }
 
                         composable(AppRoutes.TRANSACTIONS) {
+                            val transactionsListState by viewModel.transactionsListState.collectAsStateWithLifecycle()
+                            val filterState by viewModel.filterState.collectAsStateWithLifecycle()
+                            val categories by viewModel.categories.collectAsStateWithLifecycle()
+                            val paymentMethods by viewModel.paymentMethods.collectAsStateWithLifecycle()
                             TransactionsScreen(
-                                items = filteredTransactions,
+                                listState = transactionsListState,
                                 filterState = filterState,
                                 selectedYearMonth = selectedYearMonth,
                                 categories = categories,
                                 paymentMethods = paymentMethods,
                                 settings = settings,
-                                onUpdateFilter = { viewModel.updateFilter(it) },
-                                onResetFilters = { viewModel.resetFilters() },
+                                onUpdateFilter = viewModel::updateFilter,
+                                onResetFilters = viewModel::resetFilters,
                                 onEditTransaction = { item ->
                                     navController.navigate(AppRoutes.addRoute(txId = item.entity.id))
                                 },
@@ -387,6 +392,9 @@ fun LakExpenseApp(
                                 }
                             )
                         ) { entry ->
+                            val allItems by viewModel.allTransactionItems.collectAsStateWithLifecycle()
+                            val categories by viewModel.categories.collectAsStateWithLifecycle()
+                            val paymentMethods by viewModel.paymentMethods.collectAsStateWithLifecycle()
                             val txId = entry.arguments?.getLong("txId") ?: 0L
                             val typeArg = entry.arguments?.getString("initialType") ?: TransactionType.EXPENSE.name
                             val initType = TransactionType.entries.firstOrNull { it.name == typeArg }
@@ -403,7 +411,7 @@ fun LakExpenseApp(
                                 settings = settings,
                                 onClose = { navController.popBackStack() },
                                 onNavigateProfile = { navController.navigate(AppRoutes.SETTINGS) },
-                                onCopyReceiptUri = { uri, cb -> viewModel.copyReceiptFromPicker(uri, cb) },
+                                onCopyReceiptUri = viewModel::copyReceiptFromPicker,
                                 onSaveCustomCategory = { n, sub, icon, hex, t ->
                                     viewModel.saveCustomCategory(name = n, subtitle = sub, iconKey = icon, colorHex = hex, type = t)
                                 },
@@ -433,25 +441,25 @@ fun LakExpenseApp(
                         }
 
                         composable(AppRoutes.BUDGETS) {
+                            val budgetsState by viewModel.budgetsState.collectAsStateWithLifecycle()
                             BudgetsScreen(
                                 state = budgetsState,
                                 settings = settings,
                                 onPrevMonth = { viewModel.shiftMonth(-1) },
                                 onNextMonth = { viewModel.shiftMonth(1) },
-                                onSelectFilter = { viewModel.setBudgetFilter(it) },
-                                onUpsertBudget = { catId, limit, threshold ->
-                                    viewModel.upsertBudget(catId, limit, threshold)
-                                },
-                                onDeleteBudget = { viewModel.deleteBudget(it) }
+                                onSelectFilter = viewModel::setBudgetFilter,
+                                onUpsertBudget = viewModel::upsertBudget,
+                                onDeleteBudget = viewModel::deleteBudget
                             )
                         }
 
                         composable(AppRoutes.REPORTS) {
+                            val reportsState by viewModel.reportsState.collectAsStateWithLifecycle()
                             ReportsScreen(
                                 state = reportsState,
                                 settings = settings,
-                                onSelectPeriod = { viewModel.setReportPeriod(it) },
-                                onSelectCustomRange = { s, e -> viewModel.setCustomReportRange(s, e) },
+                                onSelectPeriod = viewModel::setReportPeriod,
+                                onSelectCustomRange = viewModel::setCustomReportRange,
                                 onExportPdf = {
                                     pdfExportLauncher.launch("LakExpense_Statement_$selectedYearMonth.pdf")
                                 },
@@ -462,36 +470,37 @@ fun LakExpenseApp(
                         }
 
                         composable(AppRoutes.SETTINGS) {
+                            val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+                            val vaultStats by viewModel.vaultStats.collectAsStateWithLifecycle()
+                            val categories by viewModel.categories.collectAsStateWithLifecycle()
+                            val paymentMethods by viewModel.paymentMethods.collectAsStateWithLifecycle()
+                            val biometricAvailable = remember(viewModel) {
+                                viewModel.repository.security.isBiometricAvailable()
+                            }
                             ProfileSettingsScreen(
-                                profile = dashboardState.profile,
+                                profile = userProfile,
                                 settings = settings,
                                 vaultStats = vaultStats,
                                 categories = categories,
                                 paymentMethods = paymentMethods,
-                                biometricAvailable = viewModel.repository.security.isBiometricAvailable(),
+                                biometricAvailable = biometricAvailable,
                                 onBack = { navController.popBackStack() },
-                                onPickAvatarUri = { uri -> viewModel.copyAvatarFromPicker(uri) },
-                                onUpdateProfile = { name, email, loc, bal, avatar ->
-                                    viewModel.updateProfile(name, email, loc, bal, avatar)
-                                },
-                                onSetThemeMode = { viewModel.setThemeMode(it) },
-                                onSetCurrencyOption = { viewModel.setCurrencyOption(it) },
-                                onSetDateFormat = { viewModel.setDateFormat(it) },
-                                onSetCycleStartDay = { viewModel.setCycleStartDay(it) },
-                                onSetFirstDayOfWeek = { viewModel.setFirstDayOfWeek(it) },
-                                onEnablePin = { viewModel.enablePin(it) },
-                                onDisablePin = { viewModel.disablePin() },
-                                onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
-                                onSetAutoLockOption = { viewModel.setAutoLockOption(it) },
-                                onSetHapticsEnabled = { viewModel.setHapticsEnabled(it) },
-                                onSetBudgetNotificationsEnabled = { viewModel.setBudgetNotificationsEnabled(it) },
-                                onSetDefaultAlertThreshold = { viewModel.setDefaultAlertThreshold(it) },
-                                onBackupVaultWithPassword = { uri, pass ->
-                                    viewModel.writeEncryptedBackupToUri(uri, pass)
-                                },
-                                onRestoreVaultWithPassword = { uri, pass ->
-                                    viewModel.restoreEncryptedBackupFromUri(uri, pass)
-                                },
+                                onPickAvatarUri = viewModel::copyAvatarFromPicker,
+                                onUpdateProfile = viewModel::updateProfile,
+                                onSetThemeMode = viewModel::setThemeMode,
+                                onSetCurrencyOption = viewModel::setCurrencyOption,
+                                onSetDateFormat = viewModel::setDateFormat,
+                                onSetCycleStartDay = viewModel::setCycleStartDay,
+                                onSetFirstDayOfWeek = viewModel::setFirstDayOfWeek,
+                                onEnablePin = viewModel::enablePin,
+                                onDisablePin = viewModel::disablePin,
+                                onSetBiometricEnabled = viewModel::setBiometricEnabled,
+                                onSetAutoLockOption = viewModel::setAutoLockOption,
+                                onSetHapticsEnabled = viewModel::setHapticsEnabled,
+                                onSetBudgetNotificationsEnabled = viewModel::setBudgetNotificationsEnabled,
+                                onSetDefaultAlertThreshold = viewModel::setDefaultAlertThreshold,
+                                onBackupVaultWithPassword = viewModel::writeEncryptedBackupToUri,
+                                onRestoreVaultWithPassword = viewModel::restoreEncryptedBackupFromUri,
                                 onExportPdf = {
                                     pdfExportLauncher.launch("LakExpense_Statement_$selectedYearMonth.pdf")
                                 },
@@ -501,11 +510,11 @@ fun LakExpenseApp(
                                 onSaveCustomCategory = { n, sub, icon, hex, t ->
                                     viewModel.saveCustomCategory(name = n, subtitle = sub, iconKey = icon, colorHex = hex, type = t)
                                 },
-                                onDeleteCategory = { viewModel.deleteCategory(it) },
+                                onDeleteCategory = viewModel::deleteCategory,
                                 onSavePaymentMethod = { viewModel.savePaymentMethod(it) },
-                                onDeletePaymentMethod = { viewModel.deletePaymentMethod(it) },
-                                onLoadDemoData = { viewModel.loadDemoData() },
-                                onClearDemoData = { viewModel.clearDemoData() },
+                                onDeletePaymentMethod = viewModel::deletePaymentMethod,
+                                onLoadDemoData = viewModel::loadDemoData,
+                                onClearDemoData = viewModel::clearDemoData,
                                 onResetVault = {
                                     viewModel.resetAllVaultData {
                                         navController.navigate(AppRoutes.ONBOARDING) {
@@ -524,12 +533,13 @@ fun LakExpenseApp(
     if (showMonthPicker) {
         MonthSelectorDialog(
             selectedYearMonth = selectedYearMonth,
-            onSelectYearMonth = { viewModel.selectMonth(it) },
+            onSelectYearMonth = viewModel::selectMonth,
             onDismiss = { showMonthPicker = false }
         )
     }
 
     if (showNotificationsSheet) {
+        val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
         NotificationsBottomSheet(
             alerts = dashboardState.alerts,
             onNavigateToBudgets = { navigateTopTab(AppRoutes.BUDGETS) },
@@ -538,6 +548,7 @@ fun LakExpenseApp(
     }
 
     if (showExportSheet) {
+        val reportsState by viewModel.reportsState.collectAsStateWithLifecycle()
         val colors = LakTheme.colors
         ModalBottomSheet(
             onDismissRequest = { showExportSheet = false },

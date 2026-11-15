@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +88,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.data.local.CategoryEntity
 import com.example.data.local.PaymentMethodEntity
 import com.example.data.local.TransactionEntity
@@ -99,7 +101,6 @@ import com.example.util.DateUtils
 import com.example.util.MoneyMath
 import java.io.File
 import java.math.BigDecimal
-import java.text.DecimalFormat
 import java.util.Calendar
 
 private data class SriLankaPreset(
@@ -151,6 +152,7 @@ fun AddTransactionScreen(
     BackHandler { onClose() }
 
     val colors = LakTheme.colors
+    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
 
     var selectedType by rememberSaveable { mutableStateOf(existingTransaction?.type ?: initialType) }
@@ -268,7 +270,7 @@ fun AddTransactionScreen(
         } else {
             val parts = rawAmountInput.split('.')
             val intPart = parts.getOrNull(0)?.toLongOrNull() ?: 0L
-            val grouped = DecimalFormat("#,##0").format(intPart)
+            val grouped = MoneyMath.formatIntegerGroup(intPart)
             if (parts.size > 1) "$grouped.${parts[1]}" else grouped
         }
     }
@@ -732,7 +734,12 @@ fun AddTransactionScreen(
                                         }
                                     } else {
                                         val isSelected = cat.id == selectedCategoryId
-                                        val catColor = CategoryIconMapper.parseColor(cat.colorHex, colors.primary)
+                                        val catColor = remember(cat.colorHex, colors.primary) {
+                                            CategoryIconMapper.parseColor(cat.colorHex, colors.primary)
+                                        }
+                                        val catIcon = remember(cat.iconKey) {
+                                            CategoryIconMapper.iconForKey(cat.iconKey)
+                                        }
                                         Surface(
                                             onClick = {
                                                 triggerHaptic()
@@ -764,7 +771,7 @@ fun AddTransactionScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        imageVector = CategoryIconMapper.iconForKey(cat.iconKey),
+                                                        imageVector = catIcon,
                                                         contentDescription = cat.name,
                                                         tint = if (isSelected) colors.onPrimary else catColor,
                                                         modifier = Modifier.size(20.dp)
@@ -800,7 +807,10 @@ fun AddTransactionScreen(
                     border = BorderStroke(1.dp, colors.cardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val (relPrefix, dateStr) = DateUtils.formatRelativeDayHeader(timestampMillis)
+                    val dateDisplay = remember(timestampMillis) {
+                        val (relPrefix, dateStr) = DateUtils.formatRelativeDayHeader(timestampMillis)
+                        "$relPrefix, $dateStr" to "Recorded at ${DateUtils.formatTime(timestampMillis)}"
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -828,12 +838,12 @@ fun AddTransactionScreen(
                             }
                             Column {
                                 Text(
-                                    text = "$relPrefix, $dateStr",
+                                    text = dateDisplay.first,
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                                     color = colors.onSurface
                                 )
                                 Text(
-                                    text = "Recorded at ${DateUtils.formatTime(timestampMillis)}",
+                                    text = dateDisplay.second,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.onSurfaceVariant
                                 )
@@ -1046,8 +1056,15 @@ fun AddTransactionScreen(
                         }
 
                         if (!receiptPath.isNullOrBlank()) {
+                            val receiptModel = remember(receiptPath, context) {
+                                ImageRequest.Builder(context)
+                                    .data(File(receiptPath!!))
+                                    .size(800)
+                                    .crossfade(true)
+                                    .build()
+                            }
                             AsyncImage(
-                                model = File(receiptPath!!),
+                                model = receiptModel,
                                 contentDescription = "Attached bill slip preview",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier

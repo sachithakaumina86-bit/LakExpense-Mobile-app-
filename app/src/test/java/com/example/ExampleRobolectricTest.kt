@@ -106,5 +106,42 @@ class ExampleRobolectricTest {
                 true
             }.getOrDefault(false)
         }
+
+        // Navigate across Transactions, Budgets, Reports, and Profile & Settings to verify scoped StateFlows & LazyColumns
+        composeRule.onNodeWithTag("nav_transactions").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("transactions_list").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag("nav_budgets").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("budgets_list").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag("nav_reports").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("reports_list").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag("profile_settings_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("edit_profile_button").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
     }
 }

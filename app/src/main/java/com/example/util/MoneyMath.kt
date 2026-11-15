@@ -14,9 +14,21 @@ import kotlin.math.abs
  */
 object MoneyMath {
     private val HUNDRED = BigDecimal(100)
+    private val THOUSAND = BigDecimal(1000)
+    private val MILLION = BigDecimal(1_000_000)
+    private val KB_DIVISOR = BigDecimal(1024)
+
     private val symbols = DecimalFormatSymbols(Locale.US).apply {
         groupingSeparator = ','
         decimalSeparator = '.'
+    }
+
+    private val decimalFormatTl = object : ThreadLocal<DecimalFormat>() {
+        override fun initialValue(): DecimalFormat = DecimalFormat("#,##0.00", symbols)
+    }
+
+    private val integerFormatTl = object : ThreadLocal<DecimalFormat>() {
+        override fun initialValue(): DecimalFormat = DecimalFormat("#,##0", symbols)
     }
 
     fun formatAmount(
@@ -27,8 +39,8 @@ object MoneyMath {
         isPositiveOverride: Boolean? = null
     ): String {
         val bd = BigDecimal.valueOf(abs(cents)).divide(HUNDRED, 2, RoundingMode.HALF_UP)
-        val pattern = if (includeDecimals) "#,##0.00" else "#,##0"
-        val formattedNumber = DecimalFormat(pattern, symbols).format(bd)
+        val formatter = (if (includeDecimals) decimalFormatTl.get() else integerFormatTl.get())!!
+        val formattedNumber = formatter.format(bd)
         val prefix = currency.symbol
         val sign = when {
             isPositiveOverride == true -> "+"
@@ -42,23 +54,25 @@ object MoneyMath {
 
     fun formatNumberOnly(cents: Long, includeDecimals: Boolean = true): String {
         val bd = BigDecimal.valueOf(abs(cents)).divide(HUNDRED, 2, RoundingMode.HALF_UP)
-        val pattern = if (includeDecimals) "#,##0.00" else "#,##0"
+        val formatter = (if (includeDecimals) decimalFormatTl.get() else integerFormatTl.get())!!
         val sign = if (cents < 0L) "-" else ""
-        return sign + DecimalFormat(pattern, symbols).format(bd)
+        return sign + formatter.format(bd)
+    }
+
+    fun formatIntegerGroup(value: Long): String {
+        return integerFormatTl.get()!!.format(value)
     }
 
     fun formatCompact(cents: Long): String {
         val absValue = BigDecimal.valueOf(abs(cents)).divide(HUNDRED, 2, RoundingMode.HALF_UP)
-        val thousand = BigDecimal(1000)
-        val million = BigDecimal(1_000_000)
         val sign = if (cents < 0L) "-" else ""
         return when {
-            absValue >= million -> {
-                val m = absValue.divide(million, 1, RoundingMode.HALF_UP)
+            absValue >= MILLION -> {
+                val m = absValue.divide(MILLION, 1, RoundingMode.HALF_UP)
                 "${sign}${m.stripTrailingZeros().toPlainString()}M"
             }
-            absValue >= thousand -> {
-                val k = absValue.divide(thousand, 1, RoundingMode.HALF_UP)
+            absValue >= THOUSAND -> {
+                val k = absValue.divide(THOUSAND, 1, RoundingMode.HALF_UP)
                 "${sign}${k.stripTrailingZeros().toPlainString()}k"
             }
             else -> "${sign}${absValue.setScale(0, RoundingMode.HALF_UP).toPlainString()}"
@@ -114,9 +128,9 @@ object MoneyMath {
 
     fun formatBytes(bytes: Long): String {
         if (bytes < 1024L) return "$bytes B"
-        val kb = BigDecimal.valueOf(bytes).divide(BigDecimal(1024), 1, RoundingMode.HALF_UP)
-        if (kb < BigDecimal(1024)) return "${kb.toPlainString()} KB"
-        val mb = kb.divide(BigDecimal(1024), 2, RoundingMode.HALF_UP)
+        val kb = BigDecimal.valueOf(bytes).divide(KB_DIVISOR, 1, RoundingMode.HALF_UP)
+        if (kb < KB_DIVISOR) return "${kb.toPlainString()} KB"
+        val mb = kb.divide(KB_DIVISOR, 2, RoundingMode.HALF_UP)
         return "${mb.toPlainString()} MB"
     }
 }

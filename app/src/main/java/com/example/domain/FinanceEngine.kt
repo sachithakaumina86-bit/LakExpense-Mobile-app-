@@ -18,13 +18,14 @@ import com.example.data.model.MonthlyBudgetHistoryItem
 import com.example.data.model.MonthlyComparisonBar
 import com.example.data.model.ReportPeriod
 import com.example.data.model.ReportsUiState
+import com.example.data.model.TransactionDayGroup
 import com.example.data.model.TransactionFilterState
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
+import com.example.data.model.TransactionsListUiState
 import com.example.data.model.VaultInsight
 import com.example.util.DateUtils
 import com.example.util.MoneyMath
-import java.util.Calendar
 import kotlin.math.abs
 
 object FinanceEngine {
@@ -34,8 +35,11 @@ object FinanceEngine {
         categories: List<CategoryEntity>,
         paymentMethods: List<PaymentMethodEntity>
     ): List<TransactionItem> {
-        val catMap = categories.associateBy { it.id }
-        val methodMap = paymentMethods.associateBy { it.id }
+        val catMap = HashMap<Long, CategoryEntity>(categories.size * 2)
+        for (cat in categories) catMap[cat.id] = cat
+        val methodMap = HashMap<Long, PaymentMethodEntity>(paymentMethods.size * 2)
+        for (method in paymentMethods) methodMap[method.id] = method
+
         return transactions.map { tx ->
             TransactionItem(
                 entity = tx,
@@ -56,6 +60,7 @@ object FinanceEngine {
         val startBound = filter.customStartMillis ?: if (filter.useSelectedMonth) cycleRange.startMillis else null
         val endBound = filter.customEndMillis ?: if (filter.useSelectedMonth) cycleRange.endMillis else null
         val query = filter.query.trim().lowercase()
+        val hasSpace = query.contains(' ')
 
         return items.filter { item ->
             val tx = item.entity
@@ -72,17 +77,76 @@ object FinanceEngine {
                 return@filter false
             }
             if (query.isNotEmpty()) {
-                val haystack = listOfNotNull(
-                    tx.merchant,
-                    tx.note,
-                    item.category?.name,
-                    item.paymentMethod?.name,
-                    item.toPaymentMethod?.name
-                ).joinToString(" ").lowercase()
+                val directMatch = tx.merchant.contains(query, ignoreCase = true) ||
+                    tx.note.contains(query, ignoreCase = true) ||
+                    (item.category?.name?.contains(query, ignoreCase = true) == true) ||
+                    (item.paymentMethod?.name?.contains(query, ignoreCase = true) == true) ||
+                    (item.toPaymentMethod?.name?.contains(query, ignoreCase = true) == true)
+                if (directMatch) return@filter true
+                if (!hasSpace) return@filter false
+
+                val haystack = buildString {
+                    append(tx.merchant).append(' ')
+                    append(tx.note).append(' ')
+                    item.category?.name?.let { append(it).append(' ') }
+                    item.paymentMethod?.name?.let { append(it).append(' ') }
+                    item.toPaymentMethod?.name?.let { append(it) }
+                }.lowercase()
                 if (!haystack.contains(query)) return@filter false
             }
             true
         }
+    }
+
+    fun groupTransactionsByDay(
+        items: List<TransactionItem>,
+        nowMillis: Long = System.currentTimeMillis()
+    ): TransactionsListUiState {
+        if (items.isEmpty()) return TransactionsListUiState()
+
+        var totalSpent = 0L
+        var totalEarned = 0L
+        val grouped = LinkedHashMap<Long, MutableList<TransactionItem>>()
+        val dayNetMap = HashMap<Long, Long>()
+
+        for (item in items) {
+            val tx = item.entity
+            when (tx.type) {
+                TransactionType.EXPENSE -> totalSpent += tx.amountCents
+                TransactionType.INCOME -> totalEarned += tx.amountCents
+                TransactionType.TRANSFER -> Unit
+            }
+            val dayStart = DateUtils.startOfDay(tx.timestamp)
+            val list = grouped.getOrPut(dayStart) { ArrayList() }
+            list.add(item)
+            val delta = when (tx.type) {
+                TransactionType.INCOME -> tx.amountCents
+                TransactionType.EXPENSE -> -tx.amountCents
+                TransactionType.TRANSFER -> 0L
+            }
+            dayNetMap[dayStart] = (dayNetMap[dayStart] ?: 0L) + delta
+        }
+
+        val dayGroups = grouped.entries
+            .sortedByDescending { it.key }
+            .map { (dayStart, dayItems) ->
+                val (prefix, dateStr) = DateUtils.formatRelativeDayHeader(dayStart, nowMillis)
+                TransactionDayGroup(
+                    dayStartMillis = dayStart,
+                    dayPrefix = prefix,
+                    dayDateStr = dateStr,
+                    dayNetCents = dayNetMap[dayStart] ?: 0L,
+                    items = dayItems
+                )
+            }
+
+        return TransactionsListUiState(
+            totalSpentCents = totalSpent,
+            totalEarnedCents = totalEarned,
+            netCashCents = totalEarned - totalSpent,
+            totalCount = items.size,
+            dayGroups = dayGroups
+        )
     }
 
     fun computeDashboard(
@@ -98,54 +162,99 @@ object FinanceEngine {
         val prevYm = DateUtils.shiftYearMonthKey(selectedYearMonth, -1)
         val prevCycle = DateUtils.getCycleRange(prevYm, settings.cycleStartDay, nowMillis)
 
-        // Net balance across all recorded history + opening balance (transfers are neutral)
-        val allIncome = items.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-        val allExpense = items.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
+        var allIncome = 0L
+        var allExpense = 0L
+        var periodIncome = 0L
+        var periodExpense = 0L
+        var prevExpense = 0L
+
+        val cycleExpenses = ArrayList<TransactionItem>()
+        val prevExpenses = ArrayList<TransactionItem>()
+
+        for (item in items) {
+            val tx = item.entity
+            val ts = tx.timestamp
+            val amount = tx.amountCents
+            val inCycle = ts in cycle.startMillis..cycle.endMillis
+            val inPrev = ts in prevCycle.startMillis..prevCycle.endMillis
+
+            when (tx.type) {
+                TransactionType.INCOME -> {
+                    allIncome += amount
+                    if (inCycle) periodIncome += amount
+                }
+                TransactionType.EXPENSE -> {
+                    allExpense += amount
+                    if (inCycle) {
+                        periodExpense += amount
+                        cycleExpenses.add(item)
+                    }
+                    if (inPrev) {
+                        prevExpense += amount
+                        prevExpenses.add(item)
+                    }
+                }
+                TransactionType.TRANSFER -> Unit
+            }
+        }
+
         val opening = profile?.openingBalanceCents ?: 0L
         val totalNetBalance = opening + allIncome - allExpense
 
-        val cycleItems = items.filter { it.entity.timestamp in cycle.startMillis..cycle.endMillis }
-        val periodIncome = cycleItems.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-        val periodExpense = cycleItems.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
+        val catMap = HashMap<Long, CategoryEntity>(categories.size * 2)
+        for (cat in categories) catMap[cat.id] = cat
 
-        val prevExpense = items
-            .filter { it.entity.type == TransactionType.EXPENSE && it.entity.timestamp in prevCycle.startMillis..prevCycle.endMillis }
-            .sumOf { it.entity.amountCents }
+        // Compute current-month budget cap and alerts without multi-month history
+        var overallEntity: BudgetEntity? = null
+        val catBudgets = ArrayList<BudgetEntity>()
+        for (b in budgets) {
+            if (b.yearMonth == selectedYearMonth) {
+                if (b.categoryId == null) overallEntity = b else catBudgets.add(b)
+            }
+        }
 
-        val overallBudget = budgets.firstOrNull { it.yearMonth == selectedYearMonth && it.categoryId == null }
+        val overallCap = overallEntity?.limitCents ?: catBudgets.sumOf { it.limitCents }
         val availableToSpend = when {
             periodIncome > 0L -> periodIncome - periodExpense
-            overallBudget != null && overallBudget.limitCents > 0L -> overallBudget.limitCents - periodExpense
+            overallEntity != null && overallEntity.limitCents > 0L -> overallEntity.limitCents - periodExpense
             else -> totalNetBalance
         }
 
         val dailyVelocity = buildDailySeries(
             startMillis = cycle.startMillis,
             endMillis = cycle.endMillis,
-            currentExpenses = cycleItems.filter { it.entity.type == TransactionType.EXPENSE },
+            currentExpenses = cycleExpenses,
             previousStartMillis = prevCycle.startMillis,
             previousEndMillis = prevCycle.endMillis,
-            previousExpenses = items.filter {
-                it.entity.type == TransactionType.EXPENSE && it.entity.timestamp in prevCycle.startMillis..prevCycle.endMillis
-            }
+            previousExpenses = prevExpenses
         )
 
-        val categoryBreakdown = computeCategoryBreakdown(
-            items = cycleItems,
-            categories = categories,
+        val categoryBreakdown = computeCategoryBreakdownFromExpenses(
+            expenses = cycleExpenses,
+            catMap = catMap,
             totalExpenseCents = periodExpense
         )
 
-        val budgetsState = computeBudgets(
-            items = items,
-            categories = categories,
-            budgets = budgets,
-            settings = settings,
-            selectedYearMonth = selectedYearMonth,
-            activeFilter = BudgetFilter.ALL,
-            nowMillis = nowMillis
+        val spentByCategory = HashMap<Long, Long>()
+        for (exp in cycleExpenses) {
+            val cid = exp.entity.categoryId
+            spentByCategory[cid] = (spentByCategory[cid] ?: 0L) + exp.entity.amountCents
+        }
+        val categoryCards = buildCategoryBudgetCards(
+            catBudgets = catBudgets,
+            catMap = catMap,
+            spentByCategory = spentByCategory,
+            daysRemaining = cycle.daysRemaining
         )
-        val alerts = buildBudgetAlerts(budgetsState, settings.currencyOption)
+        val overallPercent = MoneyMath.percentage(periodExpense, overallCap)
+        val alerts = buildBudgetAlertsFromParts(
+            yearMonth = selectedYearMonth,
+            overallCap = overallCap,
+            overallSpent = periodExpense,
+            overallPercentUsed = overallPercent,
+            categoryBudgets = categoryCards,
+            currency = settings.currencyOption
+        )
 
         return DashboardUiState(
             profile = profile,
@@ -153,7 +262,7 @@ object FinanceEngine {
             periodIncomeCents = periodIncome,
             periodExpenseCents = periodExpense,
             availableToSpendCents = availableToSpend,
-            monthlyBudgetCapCents = budgetsState.overallCapCents,
+            monthlyBudgetCapCents = overallCap,
             expenseDeltaPercentVsPrevMonth = MoneyMath.deltaPercentage(periodExpense, prevExpense),
             dailyVelocityPoints = dailyVelocity,
             categoryBreakdown = categoryBreakdown,
@@ -174,37 +283,47 @@ object FinanceEngine {
         nowMillis: Long = System.currentTimeMillis()
     ): BudgetsUiState {
         val cycle = DateUtils.getCycleRange(selectedYearMonth, settings.cycleStartDay, nowMillis)
-        val monthExpenses = items.filter {
-            it.entity.type == TransactionType.EXPENSE &&
-                it.entity.timestamp in cycle.startMillis..cycle.endMillis
+        val catMap = HashMap<Long, CategoryEntity>(categories.size * 2)
+        for (cat in categories) catMap[cat.id] = cat
+
+        val spentByCategory = HashMap<Long, Long>()
+        var overallSpent = 0L
+
+        val allYearMonths = (budgets.map { it.yearMonth } + selectedYearMonth).distinct().sortedDescending()
+        val ymCycles = allYearMonths.map { DateUtils.getCycleRange(it, settings.cycleStartDay, nowMillis) }
+        val ymExpenseSums = LongArray(allYearMonths.size)
+
+        for (item in items) {
+            val tx = item.entity
+            if (tx.type != TransactionType.EXPENSE) continue
+            val ts = tx.timestamp
+            val amt = tx.amountCents
+
+            if (ts in cycle.startMillis..cycle.endMillis) {
+                overallSpent += amt
+                spentByCategory[tx.categoryId] = (spentByCategory[tx.categoryId] ?: 0L) + amt
+            }
+
+            for (i in ymCycles.indices) {
+                val c = ymCycles[i]
+                if (ts in c.startMillis..c.endMillis) {
+                    ymExpenseSums[i] += amt
+                }
+            }
         }
-        val monthBudgets = budgets.filter { it.yearMonth == selectedYearMonth }
+
+        val budgetsByMonth = budgets.groupBy { it.yearMonth }
+        val monthBudgets = budgetsByMonth[selectedYearMonth].orEmpty()
         val overallEntity = monthBudgets.firstOrNull { it.categoryId == null }
         val catBudgets = monthBudgets.filter { it.categoryId != null }
-        val catMap = categories.associateBy { it.id }
 
-        val categoryCards = catBudgets.mapNotNull { budget ->
-            val category = catMap[budget.categoryId] ?: return@mapNotNull null
-            val spent = monthExpenses.filter { it.entity.categoryId == category.id }.sumOf { it.entity.amountCents }
-            val remaining = budget.limitCents - spent
-            val pct = MoneyMath.percentage(spent, budget.limitCents)
-            val isOver = spent > budget.limitCents
-            val isNear = !isOver && pct >= budget.alertThresholdPercent
-            val pace = MoneyMath.safeDailyPace(remaining.coerceAtLeast(0L), cycle.daysRemaining)
-            BudgetCardUi(
-                budget = budget,
-                category = category,
-                spentCents = spent,
-                remainingCents = remaining,
-                progressFraction = if (budget.limitCents > 0L) (spent.toFloat() / budget.limitCents.toFloat()).coerceIn(0f, 1f) else 0f,
-                percentUsed = pct,
-                safeDailyPaceCents = pace,
-                isNearLimit = isNear,
-                isOverspent = isOver
-            )
-        }.sortedByDescending { it.percentUsed }
+        val categoryCards = buildCategoryBudgetCards(
+            catBudgets = catBudgets,
+            catMap = catMap,
+            spentByCategory = spentByCategory,
+            daysRemaining = cycle.daysRemaining
+        )
 
-        val overallSpent = monthExpenses.sumOf { it.entity.amountCents }
         val overallCap = overallEntity?.limitCents ?: catBudgets.sumOf { it.limitCents }
         val overallRemaining = overallCap - overallSpent
         val overallPercent = MoneyMath.percentage(overallSpent, overallCap)
@@ -212,16 +331,11 @@ object FinanceEngine {
         val safePaceBenchmarkPercent = ((cycle.daysElapsed.toFloat() / cycle.totalDays.toFloat()) * 100f)
             .toInt().coerceIn(5, 95)
 
-        // Monthly budget history across all months present in budgets or transactions
-        val allYearMonths = (budgets.map { it.yearMonth } + selectedYearMonth).distinct().sortedDescending()
-        val history = allYearMonths.map { ym ->
-            val ymCycle = DateUtils.getCycleRange(ym, settings.cycleStartDay, nowMillis)
-            val ymExpenses = items.filter {
-                it.entity.type == TransactionType.EXPENSE && it.entity.timestamp in ymCycle.startMillis..ymCycle.endMillis
-            }.sumOf { it.entity.amountCents }
-            val ymBudgets = budgets.filter { it.yearMonth == ym }
+        val history = allYearMonths.mapIndexed { idx, ym ->
+            val ymBudgets = budgetsByMonth[ym].orEmpty()
             val ymCap = ymBudgets.firstOrNull { it.categoryId == null }?.limitCents
                 ?: ymBudgets.filter { it.categoryId != null }.sumOf { it.limitCents }
+            val ymExpenses = ymExpenseSums[idx]
             MonthlyBudgetHistoryItem(
                 yearMonth = ym,
                 monthLabel = DateUtils.formatMonthYear(ym),
@@ -231,7 +345,7 @@ object FinanceEngine {
             )
         }
 
-        val usedCategoryIds = catBudgets.mapNotNull { it.categoryId }.toSet()
+        val usedCategoryIds = catBudgets.mapNotNullTo(HashSet()) { it.categoryId }
         val availableCategories = categories.filter {
             it.type == TransactionType.EXPENSE && it.id !in usedCategoryIds
         }
@@ -255,6 +369,34 @@ object FinanceEngine {
             history = history,
             availableCategories = availableCategories
         )
+    }
+
+    private fun buildCategoryBudgetCards(
+        catBudgets: List<BudgetEntity>,
+        catMap: Map<Long, CategoryEntity>,
+        spentByCategory: Map<Long, Long>,
+        daysRemaining: Int
+    ): List<BudgetCardUi> {
+        return catBudgets.mapNotNull { budget ->
+            val category = catMap[budget.categoryId] ?: return@mapNotNull null
+            val spent = spentByCategory[category.id] ?: 0L
+            val remaining = budget.limitCents - spent
+            val pct = MoneyMath.percentage(spent, budget.limitCents)
+            val isOver = spent > budget.limitCents
+            val isNear = !isOver && pct >= budget.alertThresholdPercent
+            val pace = MoneyMath.safeDailyPace(remaining.coerceAtLeast(0L), daysRemaining)
+            BudgetCardUi(
+                budget = budget,
+                category = category,
+                spentCents = spent,
+                remainingCents = remaining,
+                progressFraction = if (budget.limitCents > 0L) (spent.toFloat() / budget.limitCents.toFloat()).coerceIn(0f, 1f) else 0f,
+                percentUsed = pct,
+                safeDailyPaceCents = pace,
+                isNearLimit = isNear,
+                isOverspent = isOver
+            )
+        }.sortedByDescending { it.percentUsed }
     }
 
     fun computeReports(
@@ -291,59 +433,115 @@ object FinanceEngine {
         val prevStart = startMillis - spanMs - 1L
         val prevEnd = startMillis - 1L
 
-        val periodItems = items.filter { it.entity.timestamp in startMillis..endMillis }
-        val prevItems = items.filter { it.entity.timestamp in prevStart..prevEnd }
+        val monthYms = Array(6) { idx ->
+            DateUtils.shiftYearMonthKey(selectedYearMonth, -(5 - idx))
+        }
+        val monthCycles = Array(6) { idx ->
+            DateUtils.getCycleRange(monthYms[idx], settings.cycleStartDay, nowMillis)
+        }
+        val monthIncomes = LongArray(6)
+        val monthExpenses = LongArray(6)
 
-        val inflow = periodItems.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-        val outflow = periodItems.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
-        val prevInflow = prevItems.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents }
-        val prevOutflow = prevItems.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
+        val periodItems = ArrayList<TransactionItem>()
+        val periodExpenses = ArrayList<TransactionItem>()
+        val prevExpenses = ArrayList<TransactionItem>()
+        val distinctDays = HashSet<Long>()
+
+        var inflow = 0L
+        var outflow = 0L
+        var prevInflow = 0L
+        var prevOutflow = 0L
+        var largestExpense: TransactionItem? = null
+        val prevExpenseByCategory = HashMap<Long, Long>()
+
+        for (item in items) {
+            val tx = item.entity
+            val ts = tx.timestamp
+            val amt = tx.amountCents
+            val type = tx.type
+
+            if (ts in startMillis..endMillis) {
+                periodItems.add(item)
+                distinctDays.add(DateUtils.startOfDay(ts))
+                when (type) {
+                    TransactionType.INCOME -> inflow += amt
+                    TransactionType.EXPENSE -> {
+                        outflow += amt
+                        periodExpenses.add(item)
+                        if (largestExpense == null || amt > largestExpense.entity.amountCents) {
+                            largestExpense = item
+                        }
+                    }
+                    TransactionType.TRANSFER -> Unit
+                }
+            } else if (ts in prevStart..prevEnd) {
+                when (type) {
+                    TransactionType.INCOME -> prevInflow += amt
+                    TransactionType.EXPENSE -> {
+                        prevOutflow += amt
+                        prevExpenses.add(item)
+                        prevExpenseByCategory[tx.categoryId] = (prevExpenseByCategory[tx.categoryId] ?: 0L) + amt
+                    }
+                    TransactionType.TRANSFER -> Unit
+                }
+            }
+
+            if (type == TransactionType.INCOME || type == TransactionType.EXPENSE) {
+                for (m in 0 until 6) {
+                    val range = monthCycles[m]
+                    if (ts in range.startMillis..range.endMillis) {
+                        if (type == TransactionType.INCOME) monthIncomes[m] += amt
+                        else monthExpenses[m] += amt
+                    }
+                }
+            }
+        }
+
         val netCashFlow = inflow - outflow
         val savingsRate = if (inflow > 0L && netCashFlow > 0L) MoneyMath.percentage(netCashFlow, inflow) else 0
-
         val totalDaysInRange = (((endMillis - startMillis) / 86_400_000L) + 1).toInt().coerceAtLeast(1)
-        val distinctDaysLogged = periodItems
-            .map { DateUtils.startOfDay(it.entity.timestamp) }
-            .distinct()
-            .count()
-
+        val distinctDaysLogged = distinctDays.size
         val activeDays = distinctDaysLogged.coerceAtLeast(1)
         val avgDailyBurn = outflow / activeDays
 
-        val monthBudgets = budgets.filter { it.yearMonth == selectedYearMonth }
-        val budgetCap = monthBudgets.firstOrNull { it.categoryId == null }?.limitCents
-            ?: monthBudgets.filter { it.categoryId != null }.sumOf { it.limitCents }
+        var overallCapFromMonth: Long? = null
+        var catCapSum = 0L
+        for (b in budgets) {
+            if (b.yearMonth == selectedYearMonth) {
+                if (b.categoryId == null) overallCapFromMonth = b.limitCents
+                else catCapSum += b.limitCents
+            }
+        }
+        val budgetCap = overallCapFromMonth ?: catCapSum
 
         val dailyPoints = buildDailySeries(
             startMillis = startMillis,
             endMillis = endMillis,
-            currentExpenses = periodItems.filter { it.entity.type == TransactionType.EXPENSE },
+            currentExpenses = periodExpenses,
             previousStartMillis = prevStart,
             previousEndMillis = prevEnd,
-            previousExpenses = prevItems.filter { it.entity.type == TransactionType.EXPENSE }
+            previousExpenses = prevExpenses
         )
 
-        val categoryDistribution = computeCategoryBreakdown(
-            items = periodItems,
-            categories = categories,
+        val catMap = HashMap<Long, CategoryEntity>(categories.size * 2)
+        for (cat in categories) catMap[cat.id] = cat
+        val categoryDistribution = computeCategoryBreakdownFromExpenses(
+            expenses = periodExpenses,
+            catMap = catMap,
             totalExpenseCents = outflow
         )
 
-        // Last 6 months Income vs Expense comparison
-        val monthlyComparisons = (5 downTo 0).map { offset ->
-            val ym = DateUtils.shiftYearMonthKey(selectedYearMonth, -offset)
-            val range = DateUtils.getCycleRange(ym, settings.cycleStartDay, nowMillis)
-            val ymItems = items.filter { it.entity.timestamp in range.startMillis..range.endMillis }
+        val monthlyComparisons = List(6) { idx ->
             MonthlyComparisonBar(
-                label = DateUtils.formatShortMonth(ym),
-                incomeCents = ymItems.filter { it.entity.type == TransactionType.INCOME }.sumOf { it.entity.amountCents },
-                expenseCents = ymItems.filter { it.entity.type == TransactionType.EXPENSE }.sumOf { it.entity.amountCents }
+                label = DateUtils.formatShortMonth(monthYms[idx]),
+                incomeCents = monthIncomes[idx],
+                expenseCents = monthExpenses[idx]
             )
         }
 
         val insights = buildVaultInsights(
-            periodItems = periodItems,
-            prevItems = prevItems,
+            largestExpense = largestExpense,
+            prevExpenseByCategory = prevExpenseByCategory,
             inflow = inflow,
             outflow = outflow,
             prevOutflow = prevOutflow,
@@ -378,24 +576,26 @@ object FinanceEngine {
         )
     }
 
-    private fun computeCategoryBreakdown(
-        items: List<TransactionItem>,
-        categories: List<CategoryEntity>,
+    private fun computeCategoryBreakdownFromExpenses(
+        expenses: List<TransactionItem>,
+        catMap: Map<Long, CategoryEntity>,
         totalExpenseCents: Long
     ): List<CategorySpendSummary> {
-        val expenses = items.filter { it.entity.type == TransactionType.EXPENSE }
         if (expenses.isEmpty()) return emptyList()
-        val catMap = categories.associateBy { it.id }
 
         return expenses.groupBy { it.entity.categoryId }
             .mapNotNull { (catId, list) ->
                 val cat = catMap[catId] ?: return@mapNotNull null
-                val total = list.sumOf { it.entity.amountCents }
-                val merchants = list.mapNotNull { it.entity.merchant.takeIf(String::isNotBlank) }
-                    .distinct()
-                    .take(3)
-                    .joinToString(", ")
-                    .ifBlank { cat.subtitle }
+                var total = 0L
+                val merchantSet = LinkedHashSet<String>(4)
+                for (item in list) {
+                    total += item.entity.amountCents
+                    val m = item.entity.merchant
+                    if (m.isNotBlank() && merchantSet.size < 3) {
+                        merchantSet.add(m)
+                    }
+                }
+                val merchants = if (merchantSet.isEmpty()) cat.subtitle else merchantSet.joinToString(", ")
                 CategorySpendSummary(
                     category = cat,
                     totalCents = total,
@@ -419,28 +619,44 @@ object FinanceEngine {
         // If range is large (Quarterly / Yearly), bucket into <= 16 evenly spaced buckets so chart stays crisp
         val bucketCount = if (totalDays <= 35) totalDays else 14
         val bucketSpanMs = ((endMillis - startMillis + 1).coerceAtLeast(1L)) / bucketCount
+        val prevSpanMs = (previousEndMillis - previousStartMillis + 1).coerceAtLeast(1L) / bucketCount
 
-        val points = mutableListOf<DailyChartPoint>()
-        var runningCumulative = 0L
-        val prevTotal = previousExpenses.sumOf { it.entity.amountCents }
+        val daySums = LongArray(bucketCount)
+        val peakAmounts = LongArray(bucketCount)
+        val peakMerchants = arrayOfNulls<String>(bucketCount)
+
+        for (item in currentExpenses) {
+            val ts = item.entity.timestamp
+            if (ts < startMillis || ts > endMillis) continue
+            val idx = ((ts - startMillis) / bucketSpanMs).toInt().coerceIn(0, bucketCount - 1)
+            val amt = item.entity.amountCents
+            daySums[idx] += amt
+            if (amt >= peakAmounts[idx]) {
+                peakAmounts[idx] = amt
+                peakMerchants[idx] = item.entity.merchant.ifBlank { item.category?.name ?: "" }
+            }
+        }
+
+        val prevSums = LongArray(bucketCount)
+        var prevTotal = 0L
+        for (item in previousExpenses) {
+            val ts = item.entity.timestamp
+            val amt = item.entity.amountCents
+            prevTotal += amt
+            if (ts in previousStartMillis..previousEndMillis) {
+                val idx = ((ts - previousStartMillis) / prevSpanMs).toInt().coerceIn(0, bucketCount - 1)
+                prevSums[idx] += amt
+            }
+        }
         val prevBucketAvg = prevTotal / bucketCount
 
+        val points = ArrayList<DailyChartPoint>(bucketCount)
+        var runningCumulative = 0L
         for (i in 0 until bucketCount) {
             val bStart = startMillis + (i * bucketSpanMs)
-            val bEnd = if (i == bucketCount - 1) endMillis else (startMillis + ((i + 1) * bucketSpanMs) - 1L)
-            val bucketItems = currentExpenses.filter { it.entity.timestamp in bStart..bEnd }
-            val daySum = bucketItems.sumOf { it.entity.amountCents }
+            val daySum = daySums[i]
             runningCumulative += daySum
-
-            val prevSpanMs = (previousEndMillis - previousStartMillis + 1).coerceAtLeast(1L) / bucketCount
-            val pStart = previousStartMillis + (i * prevSpanMs)
-            val pEnd = if (i == bucketCount - 1) previousEndMillis else (previousStartMillis + ((i + 1) * prevSpanMs) - 1L)
-            val prevDaySum = previousExpenses.filter { it.entity.timestamp in pStart..pEnd }.sumOf { it.entity.amountCents }
-
-            val topMerchant = bucketItems.maxByOrNull { it.entity.amountCents }?.let {
-                it.entity.merchant.ifBlank { it.category?.name ?: "" }
-            }.orEmpty()
-
+            val prevDaySum = prevSums[i]
             points.add(
                 DailyChartPoint(
                     dayLabel = DateUtils.formatMonthDay(bStart),
@@ -448,32 +664,36 @@ object FinanceEngine {
                     amountCents = daySum,
                     cumulativeCents = runningCumulative,
                     benchmarkCents = if (prevDaySum > 0L) prevDaySum else prevBucketAvg,
-                    topMerchant = topMerchant
+                    topMerchant = peakMerchants[i].orEmpty()
                 )
             )
         }
         return points
     }
 
-    private fun buildBudgetAlerts(
-        budgets: BudgetsUiState,
+    private fun buildBudgetAlertsFromParts(
+        yearMonth: String,
+        overallCap: Long,
+        overallSpent: Long,
+        overallPercentUsed: Int,
+        categoryBudgets: List<BudgetCardUi>,
         currency: CurrencyDisplayOption
     ): List<BudgetAlertNotification> {
         val alerts = mutableListOf<BudgetAlertNotification>()
-        if (budgets.overallCapCents > 0L && budgets.overallPercentUsed >= 80) {
-            val isOver = budgets.overallSpentCents > budgets.overallCapCents
+        if (overallCap > 0L && overallPercentUsed >= 80) {
+            val isOver = overallSpent > overallCap
             alerts.add(
                 BudgetAlertNotification(
-                    id = "overall_${budgets.yearMonth}",
+                    id = "overall_$yearMonth",
                     title = if (isOver) "Monthly Budget Exceeded" else "Monthly Cap Approaching",
-                    message = "You have spent ${MoneyMath.formatAmount(budgets.overallSpentCents, currency)} of your ${MoneyMath.formatAmount(budgets.overallCapCents, currency)} limit (${budgets.overallPercentUsed}%).",
+                    message = "You have spent ${MoneyMath.formatAmount(overallSpent, currency)} of your ${MoneyMath.formatAmount(overallCap, currency)} limit ($overallPercentUsed%).",
                     categoryName = "Total Monthly Budget",
-                    percentUsed = budgets.overallPercentUsed,
+                    percentUsed = overallPercentUsed,
                     isOverspent = isOver
                 )
             )
         }
-        budgets.categoryBudgets
+        categoryBudgets
             .filter { it.isOverspent || it.isNearLimit }
             .forEach { card ->
                 alerts.add(
@@ -491,8 +711,8 @@ object FinanceEngine {
     }
 
     private fun buildVaultInsights(
-        periodItems: List<TransactionItem>,
-        prevItems: List<TransactionItem>,
+        largestExpense: TransactionItem?,
+        prevExpenseByCategory: Map<Long, Long>,
         inflow: Long,
         outflow: Long,
         prevOutflow: Long,
@@ -503,9 +723,7 @@ object FinanceEngine {
 
         val topCategory = categoryDistribution.firstOrNull()
         if (topCategory != null) {
-            val prevCatSpend = prevItems
-                .filter { it.entity.type == TransactionType.EXPENSE && it.entity.categoryId == topCategory.category.id }
-                .sumOf { it.entity.amountCents }
+            val prevCatSpend = prevExpenseByCategory[topCategory.category.id] ?: 0L
             val delta = MoneyMath.deltaPercentage(topCategory.totalCents, prevCatSpend)
             val badge = when {
                 delta != null && delta > 0 -> "+$delta% Shift"
@@ -552,9 +770,6 @@ object FinanceEngine {
             )
         }
 
-        val largestExpense = periodItems
-            .filter { it.entity.type == TransactionType.EXPENSE }
-            .maxByOrNull { it.entity.amountCents }
         if (largestExpense != null && insights.size < 3) {
             val label = largestExpense.entity.merchant.ifBlank { largestExpense.category?.name ?: "Expense" }
             insights.add(
