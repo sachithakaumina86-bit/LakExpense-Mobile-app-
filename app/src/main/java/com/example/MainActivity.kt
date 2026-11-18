@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,8 +40,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -122,7 +126,7 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun LakExpenseApp(
     viewModel: MainViewModel,
@@ -213,7 +217,17 @@ fun LakExpenseApp(
         } else null
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    ReportDrawnWhen {
+        currentRoute == AppRoutes.HOME ||
+            currentRoute == AppRoutes.ONBOARDING ||
+            currentRoute == AppRoutes.LOCK
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .semantics { testTagsAsResourceId = true }
+    ) {
         val useNavigationRail = maxWidth >= 840.dp
 
         Scaffold(

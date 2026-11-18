@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "LakExpense"
 
 include(":app")
+include(":baselineprofile")

@@ -1,0 +1,44 @@
+# LakExpense curated Baseline Profile rules (Human-Readable Format)
+# Pre-compiles critical app startup, Compose theming, Room vault, FinanceEngine,
+# and vertical scrolling screens into assets/dexopt/baseline.prof.
+# Regenerate device-measured rules anytime via `:app:generateBaselineProfile`.
+
+# App Entry & Navigation Host
+HSPLcom/example/MainActivity;->**(**)**
+HSPLcom/example/MainActivityKt;->**(**)**
+Lcom/example/MainActivity;
+Lcom/example/MainActivityKt;
+
+# Theme & Shared Chrome
+HSPLcom/example/ui/theme/**;->**(**)**
+HSPLcom/example/ui/components/**;->**(**)**
+Lcom/example/ui/theme/**;
+Lcom/example/ui/components/**;
+
+# ViewModel, Domain Engine & Formatters
+HSPLcom/example/ui/viewmodel/**;->**(**)**
+HSPLcom/example/domain/FinanceEngine;->**(**)**
+HSPLcom/example/util/MoneyMath;->**(**)**
+HSPLcom/example/util/DateUtils;->**(**)**
+Lcom/example/ui/viewmodel/**;
+Lcom/example/domain/FinanceEngine;
+Lcom/example/util/MoneyMath;
+Lcom/example/util/DateUtils;
+
+# Local Room Vault & UI Models
+HSPLcom/example/data/local/**;->**(**)**
+HSPLcom/example/data/repository/**;->**(**)**
+HSPLcom/example/data/model/**;->**(**)**
+Lcom/example/data/local/**;
+Lcom/example/data/repository/**;
+Lcom/example/data/model/**;
+
+# Startup & Scrollable Screens
+HSPLcom/example/ui/screens/SplashScreenKt;->**(**)**
+HSPLcom/example/ui/screens/HomeDashboardScreenKt;->**(**)**
+HPLcom/example/ui/screens/TransactionsScreenKt;->**(**)**
+HPLcom/example/ui/screens/BudgetsScreenKt;->**(**)**
+HPLcom/example/ui/screens/ReportsScreenKt;->**(**)**
+HPLcom/example/ui/screens/AddTransactionScreenKt;->**(**)**
+HPLcom/example/ui/screens/ProfileSettingsScreenKt;->**(**)**
+Lcom/example/ui/screens/**;

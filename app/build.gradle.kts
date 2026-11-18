@@ -2,6 +2,7 @@ import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesS
 
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.androidx.baselineprofile)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
@@ -43,7 +44,10 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      optimization {
+        enable = true
+        packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+      }
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.
@@ -80,6 +84,13 @@ secrets {
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
+baselineProfile {
+  // Keep builds runnable without a connected emulator; run `:app:generateBaselineProfile`
+  // on a connected device or Managed Virtual Device to refresh generated rules.
+  automaticGenerationDuringBuild = false
+  dexLayoutOptimization = true
+}
+
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
@@ -104,9 +115,11 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.navigation.compose)
+  implementation(libs.androidx.profileinstaller)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  baselineProfile(project(":baselineprofile"))
   // implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
