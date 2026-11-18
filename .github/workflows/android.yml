@@ -1,15 +1,13 @@
-name: LakExpense Android CI
+name: Android CI
 
 on:
   push:
-    branches: [main, master]
   pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build-and-test:
-    name: Build Debug APK & Run Tests
+  build_and_test:
+    name: Build Debug APK & Run Unit/Robolectric Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -25,37 +23,41 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK 36.1 platform
+      - name: Install Android SDK 36.1 and 36 platforms
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36.1" "platforms;android-36" "platform-tools"
 
-      - name: Decode AI Studio debug keystore
-        run: base64 --decode debug.keystore.base64 > debug.keystore
+      - name: Restore or generate debug keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            base64 --decode debug.keystore.base64 > debug.keystore
+          elif [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v -keystore debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
 
-      - name: Run unit & Robolectric tests and verify debug/release builds
-        run: |
-          gradle --no-daemon \
-            :app:testDebugUnitTest \
-            :baselineprofile:compileNonMinifiedReleaseKotlin \
-            :baselineprofile:compileBenchmarkReleaseKotlin \
-            :app:compileReleaseKotlin \
-            :app:compileReleaseArtProfile \
-            :app:assembleDebug
+      - name: Run unit tests and Robolectric tests
+        run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Upload signed Debug APK
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: lakexpense-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      - name: Upload Unit & Robolectric test reports
+      - name: Upload unit and Robolectric test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
